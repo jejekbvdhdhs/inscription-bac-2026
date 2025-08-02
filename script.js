@@ -3,7 +3,7 @@ let registeredStudents = [];
 const MAX_STUDENTS_PER_FOUJ = 50;
 let currentSelectedFouj = '';
 let isFirebaseReady = false;
-let pendingStudentData = null; // متغير مؤقت لبيانات الطالب
+let pendingStudentData = null;
 
 // تعريف أسماء الأفواج
 const FOUJ_NAMES = {
@@ -20,6 +20,46 @@ const FOUJ_OPTIONS = [
     { key: 'برج بوعريريج_يوم السبت 10:30 صباحا (علوم تجريبية)', name: 'فوج البرج علمي 10:30', location: 'برج بوعريريج', schedule: 'يوم السبت 10:30 صباحا (علوم تجريبية)' },
     { key: 'برج بوعريريج_يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)', name:'فوج البرج علمي 13:00', location:'برج بوعريريج', schedule:'يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)'}
 ];
+
+// دالة مولد ID فريد - أساس الحل
+function generateStudentUID(student) {
+    if (student.firebaseId) {
+        return 'fb_' + student.firebaseId;
+    } else {
+        return 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+}
+
+// دالة البحث عن الطالب المُحسنة - أساس الحل
+function findStudentByUID(uid) {
+    console.log('🔍 البحث عن الطالب بـ UID:', uid);
+    
+    const student = registeredStudents.find(s => {
+        const studentUID = s.uid || generateStudentUID(s);
+        const match = (studentUID === uid || 
+                      s.firebaseId === uid || 
+                      s.id === uid ||
+                      ('fb_' + (s.firebaseId || '')) === uid ||
+                      ('local_' + (s.id || '')) === uid);
+        
+        if (match) {
+            console.log('✅ تم العثور على الطالب:', s.fullName);
+        }
+        return match;
+    });
+    
+    if (!student) {
+        console.error('❌ الطالب غير موجود:', uid);
+        console.log('📋 الطلاب المتاحون:', registeredStudents.map(s => ({
+            name: s.fullName,
+            uid: s.uid,
+            id: s.id,
+            firebaseId: s.firebaseId
+        })));
+    }
+    
+    return student;
+}
 
 // ===== دوال Firebase =====
 
@@ -47,7 +87,6 @@ function updateConnectionStatus(status) {
                 break;
         }
         
-        // إخفاء حالة الاتصال بعد 5 ثواني إذا كان متصلاً
         if (status === 'connected') {
             setTimeout(() => {
                 statusElement.style.display = 'none';
@@ -63,13 +102,11 @@ function initializeFirebase() {
         updateConnectionStatus('connected');
         console.log('✅ Firebase جاهز للاستخدام');
         
-        // تحميل البيانات فوراً
         loadStudentsFromFirebase().then(() => {
             console.log('تم تحميل', registeredStudents.length, 'طلاب');
             updateAdminDisplay();
         });
         
-        // إخفاء إشعار قاعدة البيانات إذا كان ظاهراً
         const dbNotice = document.getElementById('dbStatusNotice');
         if (dbNotice) {
             dbNotice.style.display = 'none';
@@ -81,11 +118,15 @@ function initializeFirebase() {
         updateConnectionStatus('offline');
         console.warn('⚠️ Firebase غير متاح - سيتم استخدام التخزين المحلي');
         
-        // تحميل البيانات المحلية
         registeredStudents = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+        // تعيين UID للطلاب المحليين
+        registeredStudents.forEach(student => {
+            if (!student.uid) {
+                student.uid = generateStudentUID(student);
+            }
+        });
         updateAdminDisplay();
         
-        // إظهار إشعار قاعدة البيانات
         const dbNotice = document.getElementById('dbStatusNotice');
         if (dbNotice) {
             dbNotice.style.display = 'flex';
@@ -108,8 +149,7 @@ function updateAdminDisplay() {
 async function saveStudentToFirebase(studentData) {
     if (!isFirebaseReady) {
         console.log('📱 Firebase غير متاح - حفظ محلي');
-        // حفظ محلي
-        studentData.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        studentData.uid = generateStudentUID(studentData);
         studentData.registrationDate = new Date().toLocaleDateString('ar-DZ');
         registeredStudents.unshift(studentData);
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
@@ -125,9 +165,8 @@ async function saveStudentToFirebase(studentData) {
             createdAt: new Date().toISOString()
         });
         
-        // تحديث البيانات المحلية بالـ ID الجديد
         studentData.firebaseId = docRef.id;
-        studentData.id = 'fb_' + docRef.id;
+        studentData.uid = generateStudentUID(studentData);
         studentData.registrationDate = new Date().toLocaleDateString('ar-DZ');
         registeredStudents.unshift(studentData);
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
@@ -138,8 +177,8 @@ async function saveStudentToFirebase(studentData) {
     } catch (error) {
         console.error('❌ خطأ في حفظ البيانات:', error);
         updateConnectionStatus('offline');
-        // حفظ محلي في حالة الفشل
-        studentData.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        studentData.uid = generateStudentUID(studentData);
         studentData.registrationDate = new Date().toLocaleDateString('ar-DZ');
         registeredStudents.unshift(studentData);
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
@@ -152,6 +191,12 @@ async function loadStudentsFromFirebase() {
     if (!isFirebaseReady) {
         console.log('📱 تحميل البيانات المحلية');
         registeredStudents = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+        // تعيين UID للطلاب المحليين
+        registeredStudents.forEach(student => {
+            if (!student.uid) {
+                student.uid = generateStudentUID(student);
+            }
+        });
         return registeredStudents;
     }
     
@@ -167,16 +212,15 @@ async function loadStudentsFromFirebase() {
         
         snapshot.forEach(doc => {
             const data = doc.data();
-            students.push({
+            const student = {
                 firebaseId: doc.id,
-                id: 'fb_' + doc.id,
                 ...data
-            });
+            };
+            student.uid = generateStudentUID(student);
+            students.push(student);
         });
         
         registeredStudents = students;
-        
-        // تحديث التخزين المحلي كنسخة احتياطية
         localStorage.setItem('registeredStudents', JSON.stringify(students));
         
         updateConnectionStatus('connected');
@@ -187,8 +231,12 @@ async function loadStudentsFromFirebase() {
         console.error('❌ خطأ في تحميل البيانات:', error);
         updateConnectionStatus('offline');
         
-        // في حالة الفشل، استخدم البيانات المحلية
         const localData = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+        localData.forEach(student => {
+            if (!student.uid) {
+                student.uid = generateStudentUID(student);
+            }
+        });
         registeredStudents = localData;
         return localData;
     } finally {
@@ -221,54 +269,66 @@ function checkFoujCapacity(location, schedule) {
     return foujStudents.length;
 }
 
-// عرض لافتة جميلة بعرض كامل
-function showAlert(message, type = 'success') {
+// عرض لافتة محسنة - إصلاح مشكلة عدم الظهور
+function showAlert(message, type = 'success', duration = 5000) {
+    console.log(`🚨 عرض لافتة: ${type} - ${message}`);
+    
     // إزالة أي لافتة موجودة
-    const existingAlert = document.querySelector('.alert-success, .alert-danger, .alert-warning');
-    if (existingAlert) {
-        existingAlert.remove();
-    }
+    const existingAlerts = document.querySelectorAll('.custom-alert');
+    existingAlerts.forEach(alert => alert.remove());
     
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert-${type}`;
+    alertDiv.className = 'custom-alert';
     alertDiv.style.position = 'fixed';
     alertDiv.style.top = '0';
     alertDiv.style.left = '0';
     alertDiv.style.width = '100%';
     alertDiv.style.padding = '20px';
-    alertDiv.style.fontSize = '1.1rem';
-    alertDiv.style.fontWeight = '600';
+    alertDiv.style.fontSize = '1.2rem';
+    alertDiv.style.fontWeight = '700';
     alertDiv.style.textAlign = 'center';
-    alertDiv.style.zIndex = '9999';
+    alertDiv.style.zIndex = '99999';
     alertDiv.style.display = 'flex';
     alertDiv.style.justifyContent = 'center';
     alertDiv.style.alignItems = 'center';
     alertDiv.style.gap = '15px';
     alertDiv.style.color = 'white';
-    alertDiv.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.2)';
+    alertDiv.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3)';
     alertDiv.style.animation = 'slideInFromTop 0.5s ease';
+    alertDiv.style.transform = 'translateY(0)';
+    alertDiv.style.transition = 'all 0.3s ease';
     
+    // تحديد اللون والأيقونة حسب النوع
     if (type === 'success') {
         alertDiv.style.background = 'linear-gradient(135deg, #27ae60 0%, #2ecc71 100%)';
-        alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> <span>${message}</span>`;
+        alertDiv.innerHTML = `<i class="fas fa-check-circle" style="font-size: 1.5rem;"></i> <span>${message}</span>`;
     } else if (type === 'warning') {
         alertDiv.style.background = 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)';
-        alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <span>${message}</span>`;
-    } else {
+        alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle" style="font-size: 1.5rem;"></i> <span>${message}</span>`;
+    } else if (type === 'danger') {
         alertDiv.style.background = 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)';
-        alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <span>${message}</span>`;
+        alertDiv.innerHTML = `<i class="fas fa-times-circle" style="font-size: 1.5rem;"></i> <span>${message}</span>`;
     }
     
+    // إضافة اللافتة إلى الصفحة
     document.body.appendChild(alertDiv);
+    console.log('✅ تم إضافة اللافتة إلى الصفحة');
     
+    // إخفاء اللافتة بعد المدة المحددة
     setTimeout(() => {
-        if (alertDiv.parentNode) {
+        if (alertDiv && alertDiv.parentNode) {
             alertDiv.style.transform = 'translateY(-100%)';
+            alertDiv.style.opacity = '0';
             setTimeout(() => {
-                if (alertDiv.parentNode) alertDiv.remove();
+                if (alertDiv && alertDiv.parentNode) {
+                    alertDiv.remove();
+                    console.log('🗑️ تم إزالة اللافتة');
+                }
             }, 300);
         }
-    }, 4000);
+    }, duration);
+    
+    return alertDiv;
 }
 
 // ===== دوال واجهة المستخدم =====
@@ -303,7 +363,6 @@ function showPage(pageId) {
         targetPage.style.display = 'block';
         console.log('تم عرض الصفحة:', pageId);
         
-        // إذا كانت لوحة التحكم، تحديث البيانات
         if (pageId === 'adminPanel') {
             updateAdminDisplay();
         }
@@ -443,20 +502,17 @@ function updateScheduleOptions() {
 
 // ===== دوال تأكيد وتغيير الفوج =====
 
-// إذا وافق الطالب على الفوج
 function confirmFouj() {
     document.getElementById('foujConfirmModal').style.display = 'none';
     finishStudentRegistration(pendingStudentData);
 }
 
-// إذا أراد التغيير
 function showFoujChangeModal() {
     document.getElementById('foujConfirmModal').style.display = 'none';
     populateFoujChoices();
     document.getElementById('foujChangeModal').style.display = 'flex';
 }
 
-// تعبئة خيارات الأفواج
 function populateFoujChoices() {
     const foujChoices = document.getElementById('foujChoicesList');
     foujChoices.innerHTML = '';
@@ -470,7 +526,6 @@ function populateFoujChoices() {
     });
 }
 
-// دالة إنهاء التسجيل
 async function finishStudentRegistration(studentData) {
     showLoadingIndicator(true);
     
@@ -480,39 +535,33 @@ async function finishStudentRegistration(studentData) {
     
     if (success) {
         showPage('confirmationPage');
-        showAlert('تم التسجيل بنجاح!', 'success');
+        showAlert('✅ تم التسجيل بنجاح!', 'success');
         
-        // تصفير النموذج
         const form = document.getElementById('registrationForm');
         if (form) form.reset();
         
-        // إخفاء حقل الثانوية
         const schoolField = document.getElementById('schoolField');
         if (schoolField) schoolField.style.display = 'none';
         
-        // إخفاء خيارات التوقيت والخريطة
         const scheduleOptions = document.getElementById('scheduleOptions');
         const mapContainer = document.getElementById('mapContainer');
         if (scheduleOptions) scheduleOptions.style.display = 'none';
         if (mapContainer) mapContainer.style.display = 'none';
         
-        // تحديث الإحصائيات إذا كانت لوحة التحكم مفتوحة
         updateAdminDisplay();
     } else {
-        showAlert('حدث خطأ أثناء التسجيل. حاول مرة أخرى.', 'danger');
+        showAlert('❌ حدث خطأ أثناء التسجيل. حاول مرة أخرى.', 'danger');
     }
 }
 
 // ===== معالجة إرسال النموذج =====
 
-// معالجة إرسال النموذج الأصلي مع تأكيد الفوج
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('registrationForm');
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            // جمع بيانات النموذج
             const formData = new FormData(this);
             
             const studentData = {
@@ -529,50 +578,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 schedule: formData.get('schedule')
             };
             
-            // التحقق من اكتمال البيانات المطلوبة
             if (!studentData.studentType || !studentData.location || !studentData.schedule) {
-                showAlert('يرجى ملء جميع الحقول المطلوبة.', 'danger');
+                showAlert('⚠️ يرجى ملء جميع الحقول المطلوبة.', 'warning');
                 return;
             }
             
-            // فحص سعة الفوج
             if (!checkAndShowFoujNotice()) {
-                showAlert('عذراً، هذا الفوج مكتمل. يرجى اختيار فوج آخر.', 'danger');
+                showAlert('❌ عذراً، هذا الفوج مكتمل. يرجى اختيار فوج آخر.', 'danger');
                 return;
             }
             
-            // حفظ البيانات مؤقتاً
             pendingStudentData = studentData;
             
-            // اسم الفوج للاستعراض
             const foujName = getFoujName(studentData.location, studentData.schedule);
             document.getElementById('selectedFoujName').textContent = foujName;
             
-            // عرض لافتة التأكيد
             document.getElementById('foujConfirmModal').style.display = 'flex';
         });
     }
     
-    // معالجة تغيير الفوج
     const changeFoujForm = document.getElementById('changeFoujForm');
     if (changeFoujForm) {
         changeFoujForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const chosenFoujKey = document.querySelector('input[name="chosenFouj"]:checked');
             if (!chosenFoujKey) {
-                showAlert('الرجاء اختيار فوج جديد.', 'danger');
+                showAlert('⚠️ الرجاء اختيار فوج جديد.', 'warning');
                 return;
             }
             
             const fouj = FOUJ_OPTIONS.find(f => f.key === chosenFoujKey.value);
             if (fouj) {
-                // تعديل بيانات الفوج في المتغير
                 pendingStudentData.location = fouj.location;
                 pendingStudentData.schedule = fouj.schedule;
                 
                 document.getElementById('foujChangeModal').style.display = 'none';
-                
-                // إكمال التسجيل بالفوج الجديد
                 finishStudentRegistration(pendingStudentData);
             }
         });
@@ -581,14 +621,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ===== دوال لوحة التحكم المُصححة =====
 
-// دالة عرض إحصائيات الأفواج
 function displayFoujStats() {
     const container = document.getElementById('foujStatsContainer');
     if (!container) return;
     
     console.log('عرض إحصائيات الأفواج - عدد الطلاب:', registeredStudents.length);
     
-    // حساب إحصائيات كل فوج
     const foujStats = {};
     FOUJ_OPTIONS.forEach(fouj => {
         const students = registeredStudents.filter(s => 
@@ -602,7 +640,6 @@ function displayFoujStats() {
         };
     });
     
-    // عرض الإحصائيات
     container.innerHTML = '';
     Object.values(foujStats).forEach(fouj => {
         const percentage = (fouj.count / fouj.capacity) * 100;
@@ -626,7 +663,6 @@ function displayFoujStats() {
     });
 }
 
-// دالة عرض جدول الطلاب
 function displayStudentsTable(filteredStudents = null) {
     const tableBody = document.getElementById('studentsTableBody');
     if (!tableBody) return;
@@ -651,8 +687,10 @@ function displayStudentsTable(filteredStudents = null) {
         const foujName = getFoujName(student.location, student.schedule);
         const registrationDate = student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString('ar-DZ');
         
-        // استخدام ID آمن للطالب
-        const studentId = student.id || student.firebaseId || ('temp_' + index);
+        // تأكد من وجود UID للطالب
+        if (!student.uid) {
+            student.uid = generateStudentUID(student);
+        }
         
         const row = `
             <tr>
@@ -671,10 +709,10 @@ function displayStudentsTable(filteredStudents = null) {
                 <td>${registrationDate}</td>
                 <td>
                     <div class="action-buttons">
-                        <button class="btn-edit" onclick="editStudent('${studentId}')">
+                        <button class="btn-edit" onclick="editStudent('${student.uid}')">
                             <i class="fas fa-edit"></i> تعديل
                         </button>
-                        <button class="btn-delete" onclick="confirmDeleteStudent('${studentId}', '${student.fullName.replace(/'/g, "\\'")}')">
+                        <button class="btn-delete" onclick="confirmDeleteStudent('${student.uid}', '${student.fullName.replace(/'/g, "\\'")}')">
                             <i class="fas fa-trash"></i> حذف
                         </button>
                     </div>
@@ -685,29 +723,24 @@ function displayStudentsTable(filteredStudents = null) {
     });
 }
 
-// دالة فلترة بالفوج
 function filterByFoujName(foujName) {
     console.log('فلترة بالفوج:', foujName);
     
-    // إزالة التفعيل من جميع البطاقات
     document.querySelectorAll('.stat-card').forEach(card => {
         card.classList.remove('active');
     });
     
-    // تفعيل البطاقة المختارة
     const selectedCard = document.querySelector(`[onclick="filterByFoujName('${foujName}')"]`);
     if (selectedCard) {
         selectedCard.classList.add('active');
     }
     
     if (currentSelectedFouj === foujName) {
-        // إلغاء الفلترة إذا تم النقر على نفس الفوج
         currentSelectedFouj = '';
         document.getElementById('currentFoujTitle').textContent = 'جميع الطلاب المسجلين';
         displayStudentsTable();
         if (selectedCard) selectedCard.classList.remove('active');
     } else {
-        // تطبيق الفلترة
         const filtered = registeredStudents.filter(s => {
             const studentFoujName = getFoujName(s.location, s.schedule);
             return studentFoujName === foujName;
@@ -719,18 +752,13 @@ function filterByFoujName(foujName) {
     }
 }
 
-// تحديث فلاتر الأفواج
 function updateFoujFilters() {
     const foujFilter = document.getElementById('foujFilter');
     if (!foujFilter) return;
     
-    // حفظ القيمة المختارة
     const selectedValue = foujFilter.value;
-    
-    // مسح الخيارات الحالية
     foujFilter.innerHTML = '<option value="">جميع الأفواج</option>';
     
-    // إضافة الأفواج التي بها طلاب
     const activeFoujs = new Set();
     registeredStudents.forEach(student => {
         const foujName = getFoujName(student.location, student.schedule);
@@ -744,13 +772,11 @@ function updateFoujFilters() {
         foujFilter.appendChild(option);
     });
     
-    // استعادة القيمة المختارة إن وجدت
     if (selectedValue && Array.from(activeFoujs).includes(selectedValue)) {
         foujFilter.value = selectedValue;
     }
 }
 
-// فلترة بواسطة قائمة الأفواج
 function filterByFouj() {
     const foujFilter = document.getElementById('foujFilter');
     const selectedFouj = foujFilter ? foujFilter.value : '';
@@ -761,31 +787,26 @@ function filterByFouj() {
         currentSelectedFouj = '';
         document.getElementById('currentFoujTitle').textContent = 'جميع الطلاب المسجلين';
         displayStudentsTable();
-        // إزالة التفعيل من جميع البطاقات
         document.querySelectorAll('.stat-card').forEach(card => {
             card.classList.remove('active');
         });
     }
 }
 
-// فلترة متقدمة للطلاب
 function filterStudents() {
     const branchFilter = document.getElementById('branchFilter');
     const locationFilter = document.getElementById('locationFilter');
     
     let filtered = registeredStudents;
     
-    // فلترة بالشعبة
     if (branchFilter && branchFilter.value) {
         filtered = filtered.filter(s => s.branch === branchFilter.value);
     }
     
-    // فلترة بالموقع
     if (locationFilter && locationFilter.value) {
         filtered = filtered.filter(s => s.location === locationFilter.value);
     }
     
-    // فلترة بالفوج إذا كان محدد
     if (currentSelectedFouj) {
         filtered = filtered.filter(s => {
             const foujName = getFoujName(s.location, s.schedule);
@@ -795,7 +816,6 @@ function filterStudents() {
     
     displayStudentsTable(filtered);
     
-    // تحديث عنوان الجدول
     let title = 'الطلاب المسجلين';
     const filters = [];
     if (currentSelectedFouj) filters.push(currentSelectedFouj);
@@ -811,96 +831,104 @@ function filterStudents() {
     document.getElementById('currentFoujTitle').textContent = title;
 }
 
-// حذف طالب مع تأكيد - مُصحح
-function confirmDeleteStudent(studentId, studentName) {
-    // إنشاء نافذة تأكيد مخصصة أفضل من confirm العادي
-    const isConfirmed = confirm(`⚠️ هل أنت متأكد من حذف الطالب: ${studentName}؟\n\nهذا الإجراء لا يمكن التراجع عنه.`);
+// حذف طالب مع تأكيد - مُصحح نهائياً
+function confirmDeleteStudent(studentUID, studentName) {
+    console.log('🗑️ طلب حذف الطالب:', studentUID, studentName);
     
-    if (isConfirmed) {
-        deleteStudent(studentId);
+    // نافذة تأكيد محسنة
+    const userConfirmed = confirm(`⚠️ تحذير: هل أنت متأكد من حذف الطالب؟\n\n👤 الاسم: ${studentName}\n🆔 المعرف: ${studentUID}\n\n❌ هذا الإجراء لا يمكن التراجع عنه!`);
+    
+    if (userConfirmed) {
+        console.log('✅ تم تأكيد الحذف من المستخدم');
+        deleteStudent(studentUID);
+    } else {
+        console.log('❌ تم إلغاء الحذف من المستخدم');
+        showAlert('⚪ تم إلغاء عملية الحذف', 'warning', 3000);
     }
 }
 
-// حذف طالب - مُصحح
-async function deleteStudent(studentId) {
-    console.log('محاولة حذف الطالب بـ ID:', studentId);
+// حذف طالب - الإصلاح النهائي
+async function deleteStudent(studentUID) {
+    console.log('🗑️ بدء عملية حذف الطالب:', studentUID);
     
-    // البحث عن الطالب بطرق متعددة
-    const studentIndex = registeredStudents.findIndex(s => {
-        return s.id === studentId || 
-               s.firebaseId === studentId || 
-               ('fb_' + s.firebaseId) === studentId ||
-               ('local_' + s.id) === studentId;
-    });
+    // البحث عن الطالب بـ UID
+    const student = findStudentByUID(studentUID);
     
-    if (studentIndex === -1) {
-        console.error('الطالب غير موجود:', studentId);
-        showAlert('❌ الطالب غير موجود في السجلات', 'danger');
+    if (!student) {
+        console.error('❌ فشل العثور على الطالب للحذف');
+        showAlert('❌ فشل في العثور على الطالب في السجلات', 'danger', 4000);
         return;
     }
     
-    const student = registeredStudents[studentIndex];
-    console.log('تم العثور على الطالب:', student.fullName);
+    console.log('✅ تم العثور على الطالب للحذف:', student.fullName);
     
     // إظهار مؤشر التحميل
     showLoadingIndicator(true);
+    showAlert('⏳ جاري حذف الطالب...', 'warning', 2000);
     
     try {
-        // محاولة حذف من Firebase إذا كان متاحاً ولديه firebaseId
+        // محاولة حذف من Firebase إذا كان متاحاً
         if (isFirebaseReady && student.firebaseId) {
+            console.log('🔥 محاولة حذف من Firebase...');
             try {
                 await db.collection('students').doc(student.firebaseId).delete();
-                console.log('تم حذف الطالب من Firebase');
+                console.log('✅ تم حذف الطالب من Firebase بنجاح');
             } catch (firebaseError) {
-                console.error('خطأ في حذف الطالب من Firebase:', firebaseError);
-                // لا نوقف العملية، نكمل الحذف المحلي
+                console.error('⚠️ خطأ في حذف الطالب من Firebase:', firebaseError);
+                showAlert('⚠️ تم الحذف محلياً فقط (مشكلة في Firebase)', 'warning', 3000);
             }
+        }
+        
+        // العثور على فهرس الطالب في المصفوفة
+        const studentIndex = registeredStudents.findIndex(s => s.uid === studentUID);
+        
+        if (studentIndex === -1) {
+            console.error('❌ فشل في العثور على فهرس الطالب');
+            showAlert('❌ خطأ في فهرس الطالب', 'danger');
+            return;
         }
         
         // حذف من المصفوفة المحلية
         registeredStudents.splice(studentIndex, 1);
+        console.log('✅ تم حذف الطالب من المصفوفة المحلية');
         
         // تحديث التخزين المحلي
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
+        console.log('✅ تم تحديث التخزين المحلي');
         
         // تحديث العرض
         updateAdminDisplay();
+        console.log('✅ تم تحديث عرض لوحة التحكم');
         
         // إظهار رسالة نجاح
-        showAlert(`✅ تم حذف الطالب "${student.fullName}" بنجاح`, 'success');
+        showAlert(`✅ تم حذف الطالب "${student.fullName}" بنجاح`, 'success', 4000);
         
-        console.log('تم حذف الطالب بنجاح');
+        console.log('🎉 تمت عملية الحذف بنجاح');
         
     } catch (error) {
-        console.error('خطأ عام في حذف الطالب:', error);
-        showAlert('❌ حدث خطأ أثناء حذف الطالب', 'danger');
+        console.error('💥 خطأ عام في حذف الطالب:', error);
+        showAlert('❌ حدث خطأ غير متوقع أثناء حذف الطالب', 'danger', 4000);
     } finally {
         showLoadingIndicator(false);
     }
 }
 
 // تعديل طالب - مُصحح
-function editStudent(studentId) {
-    console.log('محاولة تعديل الطالب بـ ID:', studentId);
+function editStudent(studentUID) {
+    console.log('✏️ طلب تعديل الطالب:', studentUID);
     
-    // البحث عن الطالب بطرق متعددة
-    const student = registeredStudents.find(s => {
-        return s.id === studentId || 
-               s.firebaseId === studentId || 
-               ('fb_' + s.firebaseId) === studentId ||
-               ('local_' + s.id) === studentId;
-    });
+    const student = findStudentByUID(studentUID);
     
     if (!student) {
-        console.error('الطالب غير موجود:', studentId);
-        showAlert('❌ الطالب غير موجود في السجلات', 'danger');
+        console.error('❌ فشل العثور على الطالب للتعديل');
+        showAlert('❌ فشل في العثور على الطالب في السجلات', 'danger');
         return;
     }
     
-    console.log('تم العثور على الطالب للتعديل:', student.fullName);
+    console.log('✅ تم العثور على الطالب للتعديل:', student.fullName);
     
     // عرض رسالة مؤقتة - يمكن تطوير نافذة تعديل لاحقاً
-    showAlert(`📝 تعديل بيانات الطالب "${student.fullName}" - الميزة قيد التطوير`, 'warning');
+    showAlert(`📝 تعديل بيانات الطالب "${student.fullName}" - الميزة قيد التطوير`, 'warning', 4000);
 }
 
 // تصدير البيانات إلى Excel
@@ -910,7 +938,6 @@ function exportAllToExcel() {
         return;
     }
     
-    // إنشاء محتوى CSV
     const headers = ['الرقم', 'الفوج', 'الاسم واللقب', 'نوع الطالب', 'الثانوية', 'الشعبة', 'المعدل', 'مستوى الرياضيات', 'الهاتف الشخصي', 'هاتف الولي', 'مكان الدروس', 'التوقيت', 'تاريخ التسجيل'];
     
     let csvContent = '\uFEFF'; // BOM لدعم UTF-8
@@ -939,7 +966,6 @@ function exportAllToExcel() {
         csvContent += row.map(field => `"${field}"`).join(',') + '\n';
     });
     
-    // تحميل الملف
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -949,7 +975,6 @@ function exportAllToExcel() {
     showAlert(`✅ تم تصدير ${registeredStudents.length} طالب بنجاح`, 'success');
 }
 
-// تصدير الفوج الحالي
 function exportCurrentFoujToExcel() {
     let studentsToExport = registeredStudents;
     let filename = 'جميع_الطلاب';
@@ -967,7 +992,6 @@ function exportCurrentFoujToExcel() {
         return;
     }
     
-    // نفس منطق التصدير
     const headers = ['الرقم', 'الاسم واللقب', 'نوع الطالب', 'الثانوية', 'الشعبة', 'المعدل', 'مستوى الرياضيات', 'الهاتف الشخصي', 'هاتف الولي', 'مكان الدروس', 'التوقيت', 'تاريخ التسجيل'];
     
     let csvContent = '\uFEFF';
@@ -1003,7 +1027,6 @@ function exportCurrentFoujToExcel() {
     showAlert(`✅ تم تصدير ${studentsToExport.length} طالب بنجاح`, 'success');
 }
 
-// تصدير نسخة احتياطية JSON
 function exportToJSON() {
     if (registeredStudents.length === 0) {
         showAlert('❌ لا توجد بيانات للتصدير', 'danger');
@@ -1027,7 +1050,6 @@ function exportToJSON() {
     showAlert('✅ تم إنشاء النسخة الاحتياطية بنجاح', 'success');
 }
 
-// تحديث البيانات
 async function refreshData() {
     console.log('🔄 تحديث البيانات...');
     await loadStudentsFromFirebase();
@@ -1062,7 +1084,7 @@ function confirmPassword() {
             updateAdminDisplay();
         });
     } else if (password.trim() === '') {
-        showAlert('⚠️ يرجى إدخال كلمة المرور', 'danger');
+        showAlert('⚠️ يرجى إدخال كلمة المرور', 'warning');
         if (passwordInput) passwordInput.focus();
     } else {
         showAlert('❌ كلمة مرور خاطئة', 'danger');
@@ -1107,7 +1129,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // إنشاء زر لوحة التحكم
 function createAdminButton() {
-    // التحقق من وجود زر سابق وإزالته
     const existingButton = document.querySelector('.admin-control-button');
     if (existingButton) {
         existingButton.remove();

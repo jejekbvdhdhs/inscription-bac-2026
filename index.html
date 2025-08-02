@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>تسجيلات دروس الدعم في الرياضيات - بكالوريا 2026</title>
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <script>
+    // إعدادات Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyBIEGme5wvEs8B4jPF_YFlu8CEWsInQ9-E",
+        authDomain: "bac-2026.firebaseapp.com",
+        projectId: "bac-2026",
+        storageBucket: "bac-2026.firebasestorage.app",
+        messagingSenderId: "463802056811",
+        appId: "1:463802056811:web:61608120e74e76878c712e"
+    };
+
+    try {
+        firebase.initializeApp(firebaseConfig);
+        window.db = firebase.firestore();
+        window.firebaseInitialized = true;
+        console.log('✅ Firebase تم تهيئته بنجاح');
+    } catch (error) {
+        console.error('❌ خطأ في تهيئة Firebase:', error);
+        window.firebaseInitialized = false;
+    }
+    </script>
+</head>
+<body>
+    <!-- مؤشر التحميل -->
+    <div id="loadingIndicator" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div style="text-align: center;">
+            <div class="loading-spinner" style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #000; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+            <p>جاري تحميل البيانات...</p>
+        </div>
+    </div>
+
+    <!-- حالة الاتصال بقاعدة البيانات -->
+    <div id="connectionStatus" style="display: none; position: fixed; top: 10px; left: 10px; z-index: 9998; padding: 8px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
+        <i class="fas fa-circle" style="font-size: 0.6rem; margin-left: 5px;"></i>
+        <span id="statusText">متصل</span>
+    </div>
+
+    <!-- الصفحة الرئيسية -->
+    <div id="homePage" class="page active">
+        <div class="math-symbols">
+            <div class="symbol">∫</div>
+            <div class="symbol">π</div>
+            <div class="symbol">∞</div>
+            <div class="symbol">∑</div>
+            <div class="symbol">√</div>
+            <div class="symbol">∆</div>
+            <div class="symbol">∂</div>
+            <div class="symbol">α</div>
+            <div class="symbol">β</div>
+            <div class="symbol">θ</div>
+            <div class="symbol">Ω</div>
+            <div class="symbol">λ</div>
+            <div class="symbol">φ</div>
+            <div class="symbol">ψ</div>
+            <div class="symbol">∇</div>
+        </div>
+        
+        <div class="container">
+            <header class="hero-section">
+                <h1 class="main-title">تسجيلات دروس الدعم في الرياضيات</h1>
+                <h2 class="sub-title">بكالوريا 2026 - الأستاذ بلعياضي أكرم</h2>
+                
+                <div class="professor-card">
+                    <div class="professor-image">
+                        <img src="https://i.imgur.com/qEQ3kln.jpeg" alt="الأستاذ بلعياضي أكرم" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjZjNmNGY2Ii8+CjxjaXJjbGUgY3g9Ijc1IiBjeT0iNjAiIHI9IjI1IiBmaWxsPSIjOWNhM2FmIi8+CjxwYXRoIGQ9Ik0zMCAxMjBjMC0yNSAyMC00NSA0NS00NXM0NSAyMCA0NSA0NXYzMEgzMHoiIGZpbGw9IiM5Y2EzYWYiLz4KPC9zdmc+'">
+                    </div>
+                    <div class="professor-info">
+                        <h3>الأستاذ بلعياضي أكرم</h3>
+                        <ul>
+                            <li><i class="fas fa-graduation-cap"></i> باحث دكتوراه في الرياضيات التطبيقية بالقبة</li>
+                            <li><i class="fas fa-certificate"></i> ماستر في دراسة النماذج الرياضياتية للظواهر الفيزيائية</li>
+                            <li><i class="fas fa-university"></i> خريج المدرسة العليا للأساتذة</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="pricing-banner">
+                    <div class="pricing-content">
+                        <div class="price-main">
+                            <i class="fas fa-tag"></i>
+                            <span class="price">التسعيرة: 2000 دج</span>
+                        </div>
+                        <div class="pricing-details">
+                            <div class="pricing-item">
+                                <i class="fas fa-clock"></i>
+                                <span>حصص 2 ساعة</span>
+                            </div>
+                            <div class="pricing-item">
+                                <i class="fas fa-calendar-alt"></i>
+                                <span>عدد الحصص في الشهر: 4</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="register-btn" onclick="showConsent()">
+                    <i class="fas fa-user-plus"></i>
+                    سجل الآن
+                </button>
+            </header>
+        </div>
+        
+        <!-- نافذة الموافقة -->
+        <div id="consentModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h3>موافقة على مشاركة المعلومات الشخصية</h3>
+                <p>هل توافق على مشاركة معلوماتك الشخصية خلال التسجيل؟</p>
+                <div class="pricing-reminder">
+                    <i class="fas fa-info-circle"></i>
+                    <p><strong>تذكير:</strong> التسعيرة 2000 دج - حصص 2 ساعة - عدد الحصص في الشهر 4</p>
+                </div>
+                <div class="consent-buttons">
+                    <button class="btn-yes" onclick="goToRegistration()">نعم</button>
+                    <button class="btn-no" onclick="closeConsent()">لا</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- صفحة التسجيل -->
+    <div id="registrationPage" class="page" style="display:none;">
+        <div class="math-symbols">
+            <div class="symbol">∫</div>
+            <div class="symbol">π</div>
+            <div class="symbol">∞</div>
+            <div class="symbol">∑</div>
+            <div class="symbol">√</div>
+            <div class="symbol">∆</div>
+            <div class="symbol">∂</div>
+            <div class="symbol">α</div>
+            <div class="symbol">β</div>
+            <div class="symbol">θ</div>
+            <div class="symbol">Ω</div>
+            <div class="symbol">λ</div>
+            <div class="symbol">φ</div>
+            <div class="symbol">ψ</div>
+            <div class="symbol">∇</div>
+        </div>
+        
+        <div class="container">
+            <div class="form-container">
+                <h2>نموذج التسجيل</h2>
+                
+                <div id="foujFullNotice" class="notice" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>تنبيه: الفوج الحالي مكتمل (50 طالب). سيتم تسجيلك في الفوج التالي.</span>
+                </div>
+                
+                <div id="dbStatusNotice" class="notice" style="display: none; background-color: #fff3cd; color: #856404;">
+                    <i class="fas fa-wifi"></i>
+                    <span>يتم الحفظ محلياً - تحقق من الاتصال بالإنترنت</span>
+                </div>
+                
+                <form id="registrationForm">
+                    <!-- نوع الطالب (مطلوب) -->
+                    <div class="form-group">
+                        <label>نوع الطالب:</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input required type="radio" name="studentType" value="نظامي" onchange="toggleSchoolField(this)" />
+                                <span class="radio-icon">🎓</span>
+                                طالب نظامي
+                            </label>
+                            <label class="radio-label">
+                                <input required type="radio" name="studentType" value="حر" onchange="toggleSchoolField(this)" />
+                                <span class="radio-icon">📚</span>
+                                طالب حر
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- الثانوية -->
+                    <div class="form-group" id="schoolField" style="display: none;">
+                        <label for="school">اختر الثانوية:</label>
+                        <select id="school" name="school">
+                            <option value="">اختر الثانوية</option>
+                            <option value="مؤسسة التربية والتعليم القوس الأول الخاصة - برج بوعريريج">مؤسسة التربية والتعليم القوس الأول الخاصة - برج بوعريريج</option>
+                            <option value="ثانوية سيفي الطاهر - ثنية النصر">ثانوية سيفي الطاهر - ثنية النصر</option>
+                            <option value="ثانوية بلم عبد الحفيظ - أولاد ابراهيم">ثانوية بلم عبد الحفيظ - أولاد ابراهيم</option>
+                            <option value="ثانوية المجاهد يحى بو عزيز - الماين">ثانوية المجاهد يحى بو عزيز - الماين</option>
+                            <option value="ثانوية الشهيد بوز عرورة السعيد - برج بوعريريج">ثانوية الشهيد بوز عرورة السعيد - برج بوعريريج</option>
+                            <option value="ثانوية عيسى حميطوش - برج بوعريريج">ثانوية عيسى حميطوش - برج بوعريريج</option>
+                            <option value="ثانوية محمد د الشريف بوسام - برج غدير">ثانوية محمد د الشريف بوسام - برج غدير</option>
+                            <option value="ثانوية مالك بن نبي - برج غدير">ثانوية مالك بن نبي - برج غدير</option>
+                            <option value="ثانوية بن خروف يوسف - الجعافرة">ثانوية بن خروف يوسف - الجعافرة</option>
+                            <option value="ثانوية عمار بوجلال مبارك - مجانة">ثانوية عمار بوجلال مبارك - مجانة</option>
+                            <option value="ثانوية الشهيد زیوال علاوة - الجعافرة">ثانوية الشهيد زیوال علاوة - الجعافرة</option>
+                            <option value="ثانوية فارح محمد الطيب - القصور">ثانوية فارح محمد الطيب - القصور</option>
+                            <option value="ثانوية المجاهد المتوفي بن أحمد السعيد - برج بوعريريج">ثانوية المجاهد المتوفي بن أحمد السعيد - برج بوعريريج</option>
+                            <option value="ثانوية محمادي أحمد - العناصر">ثانوية محمادي أحمد - العناصر</option>
+                            <option value="ثانوية ابن احمد الخضر - العناصر">ثانوية ابن احمد الخضر - العناصر</option>
+                            <option value="ثانوية بن سخرية الطيب - المهير">ثانوية بن سخرية الطيب - المهير</option>
+                            <option value="ثانوية بهاء العلى - خليل">ثانوية بهاء العلى - خليل</option>
+                            <option value="ثانوية فارس الحسين - برج بوعريريج">ثانوية فارس الحسين - برج بوعريريج</option>
+                            <option value="ثانوية بوشمال محمد النذير - المنصورة">ثانوية بوشمال محمد النذير - المنصورة</option>
+                            <option value="ثانوية كيال عراس - تيكستار">ثانوية كيال عراس - تيكستار</option>
+                            <option value="ثانوية الشيخ عمر ابي حفص - برج زمورة">ثانوية الشيخ عمر ابي حفص - برج زمورة</option>
+                            <option value="ثانوية عبد المجيد بورزق - برج بوعريريج">ثانوية عبد المجيد بورزق - برج بوعريريج</option>
+                            <option value="ثانوية عبد اللافي بوضياف - عين تاغروت">ثانوية عبد اللافي بوضياف - عين تاغروت</option>
+                            <option value="ثانوية 545 شهيدا - غيلاسة">ثانوية 545 شهيدا - غيلاسة</option>
+                            <option value="ثانوية على ماضوي - برج بوعريريج">ثانوية على ماضوي - برج بوعريريج</option>
+                            <option value="ثانوية الشهيد بن دريميع احمد المدعو المطروش - برج غدير">ثانوية الشهيد بن دريميع احمد المدعو المطروش - برج غدير</option>
+                            <option value="ثانوية عبد الحميد بن باديس - المنصورة">ثانوية عبد الحميد بن باديس - المنصورة</option>
+                            <option value="ثانوية بوزراعة أحسن - رأس الوادي">ثانوية بوزراعة أحسن - رأس الوادي</option>
+                            <option value="ثانوية بلفار اسماعيل - أولاد دحمان">ثانوية بلفار اسماعيل - أولاد دحمان</option>
+                            <option value="ثانوية 16 شهيدا - بلیمور">ثانوية 16 شهيدا - بلیمور</option>
+                            <option value="ثانوية سقني عيسى - مجانة">ثانوية سقني عيسى - مجانة</option>
+                            <option value="ثانوية زيري مباركة - بن داود">ثانوية زيري مباركة - بن داود</option>
+                            <option value="ثانوية قصار عبد الله - القصور">ثانوية قصار عبد الله - القصور</option>
+                            <option value="ثانوية الاخوة رباح - رأس الوادي">ثانوية الاخوة رباح - رأس الوادي</option>
+                            <option value="ثانوية فرحات عباس - برج بوعريريج">ثانوية فرحات عباس - برج بوعريريج</option>
+                            <option value="ثانوية الشريف الرقط رأس الوادي">ثانوية الشريف الرقط رأس الوادي</option>
+                            <option value="ثانوية احمد خبابة - برج غدير">ثانوية احمد خبابة - برج غدير</option>
+                            <option value="ثانوية أول نوفمبر - برج بوعريريج">ثانوية أول نوفمبر - برج بوعريريج</option>
+                            <option value="مؤسسة التربية والتعليم التحدي الخاصة - برج بوعريريج">مؤسسة التربية والتعليم التحدي الخاصة - برج بوعريريج</option>
+                            <option value="ثانوية عبد الحميد آخروف - برج بوعريريج">ثانوية عبد الحميد آخروف - برج بوعريريج</option>
+                            <option value="ثانوية شكال محمد امزيان - القلة">ثانوية شكال محمد امزيان - القلة</option>
+                            <option value="ثانوية العمري بوعافية - حسناوة">ثانوية العمري بوعافية - حسناوة</option>
+                            <option value="ثانوية السعيد بوعلي - برج بوعريريج">ثانوية السعيد بوعلي - برج بوعريريج</option>
+                            <option value="ثانوية بلعيفة احمد - بن داود">ثانوية بلعيفة احمد - بن داود</option>
+                            <option value="ثانوية بلميهوب عبد الرحمان - برج بوعريريج">ثانوية بلميهوب عبد الرحمان - برج بوعريريج</option>
+                            <option value="ثانوية العربي عباسي - سيدي مبارك">ثانوية العربي عباسي - سيدي مبارك</option>
+                            <option value="ثانوية بوادي بوسواليم - رأس الوادي">ثانوية بوادي بوسواليم - رأس الوادي</option>
+                            <option value="ثانوية حريزي البشير - العش">ثانوية حريزي البشير - العش</option>
+                            <option value="ثانوية المجاهد المتوفي مجدوب محمد - برج بوعريريج">ثانوية المجاهد المتوفي مجدوب محمد - برج بوعريريج</option>
+                            <option value="ثانوية زرقون سليمان - خليل">ثانوية زرقون سليمان - خليل</option>
+                            <option value="ثانوية عبد الحق بن حمودة - المهير">ثانوية عبد الحق بن حمودة - المهير</option>
+                            <option value="ثانوية سالم صريفق - رأس الوادي">ثانوية سالم صريفق - رأس الوادي</option>
+                            <option value="ثانوية هواري بومدين - الياشير">ثانوية هواري بومدين - الياشير</option>
+                            <option value="ثانوية محمد المقراني - برج بوعريريج">ثانوية محمد المقراني - برج بوعريريج</option>
+                            <option value="ثانوية بن مساهل محمد - بئر قصد علي">ثانوية بن مساهل محمد - بئر قصد علي</option>
+                            <option value="ثانوية صاهد مبارك - الحمادية">ثانوية صاهد مبارك - الحمادية</option>
+                            <option value="ثانوية الأخوين الشهيدين يوسفی مولود و لعيفة - حرازة">ثانوية الأخوين الشهيدين يوسفی مولود و لعيفة - حرازة</option>
+                            <option value="ثانوية بالعروسي بن يحي - الرابطة">ثانوية بالعروسي بن يحي - الرابطة</option>
+                            <option value="ثانوية معركة قرن الكبش - تقلعيت">ثانوية معركة قرن الكبش - تقلعيت</option>
+                            <option value="ثانوية رماش عمر - عين تسرة">ثانوية رماش عمر - عين تسرة</option>
+                            <option value="ثانوية السعيد زروقي - برج بوعريريج">ثانوية السعيد زروقي - برج بوعريريج</option>
+                            <option value="ثانوية 18 فيفري - الحمادية">ثانوية 18 فيفري - الحمادية</option>
+                            <option value="ثانوية أخرى">ثانوية أخرى</option>
+                        </select>
+                    </div>
+
+                    <!-- الاسم واللقب -->
+                    <div class="form-group">
+                        <label for="fullName">الاسم واللقب:</label>
+                        <input type="text" id="fullName" name="fullName" required />
+                    </div>
+
+                    <!-- تاريخ الميلاد -->
+                    <div class="form-group">
+                        <label for="birthDate">تاريخ الميلاد:</label>
+                        <input type="date" id="birthDate" name="birthDate" required />
+                    </div>
+
+                    <!-- الشعبة -->
+                    <div class="form-group">
+                        <label>الشعبة:</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="branch" value="علوم تجريبية" onchange="updateScheduleOptions()" />
+                                <span class="radio-icon">🔬</span>
+                                علوم تجريبية
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="branch" value="تقني رياضي" onchange="updateScheduleOptions()" />
+                                <span class="radio-icon">⚙️</span>
+                                تقني رياضي
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="branch" value="رياضيات" onchange="updateScheduleOptions()" />
+                                <span class="radio-icon">📐</span>
+                                رياضيات
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- المعدل العام -->
+                    <div class="form-group">
+                        <label for="averageGrade">المعدل العام السنوي (ثانية ثانوي):</label>
+                        <input type="number" id="averageGrade" name="averageGrade" min="0" max="20" step="0.01" required />
+                    </div>
+
+                    <!-- المستوى في الرياضيات -->
+                    <div class="form-group">
+                        <label for="mathLevel">المستوى العام في مادة الرياضيات:</label>
+                        <select id="mathLevel" name="mathLevel" required>
+                            <option value="">اختر المستوى</option>
+                            <option value="ممتاز">ممتاز</option>
+                            <option value="جيد جداً">جيد جداً</option>
+                            <option value="جيد">جيد</option>
+                            <option value="مقبول">مقبول</option>
+                            <option value="ضعيف">ضعيف</option>
+                        </select>
+                    </div>
+
+                    <!-- رقم الهاتف الشخصي -->
+                    <div class="form-group">
+                        <label for="personalPhone">رقم الهاتف الشخصي:</label>
+                        <input type="tel" id="personalPhone" name="personalPhone" required />
+                    </div>
+
+                    <!-- رقم هاتف الولي -->
+                    <div class="form-group">
+                        <label for="guardianPhone">رقم هاتف الولي:</label>
+                        <input type="tel" id="guardianPhone" name="guardianPhone" required />
+                    </div>
+
+                    <!-- مكان الدروس (مطلوب) -->
+                    <div class="form-group">
+                        <label>مكان الدروس الخصوصية:</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input required type="radio" name="location" value="برج بوعريريج" onchange="updateLocationOptions(this)" />
+                                <span class="radio-icon">🏢</span>
+                                برج بوعريريج
+                            </label>
+                            <label class="radio-label">
+                                <input required type="radio" name="location" value="رأس الوادي" onchange="updateLocationOptions(this)" />
+                                <span class="radio-icon">🏛️</span>
+                                رأس الوادي
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- خيارات التوقيت (إجباري) -->
+                    <div class="form-group" id="scheduleOptions" style="display: none;">
+                        <label>اختر التوقيت:</label>
+                        <div id="scheduleChoices" class="radio-group">
+                            <!-- سيتم توليد خيارات التوقيت ديناميكياً مع خاصية required -->
+                        </div>
+                    </div>
+
+                    <!-- الخريطة -->
+                    <div id="mapContainer" style="display: none;">
+                        <h3>موقع الدروس:</h3>
+                        <div id="mapFrame"></div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-check"></i>
+                        إتمام التسجيل
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- لافتة تأكيد الفوج -->
+    <div id="foujConfirmModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h3>تأكيد الفوج</h3>
+        <p id="foujConfirmText">تم تسجيلك في: <span id="selectedFoujName"></span></p>
+        <div class="consent-buttons" style="justify-content:center; gap:20px;">
+          <button class="btn-yes" onclick="confirmFouj()">موافق</button>
+          <button class="btn-no" onclick="showFoujChangeModal()">تغيير الفوج</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- لافتة اختيار فوج جديد -->
+    <div id="foujChangeModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h3>تغيير الفوج</h3>
+        <form id="changeFoujForm">
+          <label>اختر فوجاً آخر:</label>
+          <div id="foujChoicesList" class="radio-group"></div>
+          <div class="consent-buttons" style="justify-content:center; margin-top:15px;">
+            <button type="submit" class="btn-yes">تأكيد الفوج الجديد</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- صفحة تأكيد التسجيل -->
+    <div id="confirmationPage" class="page" style="display:none;">
+        <div class="container">
+            <div class="confirmation-content">
+                <div class="success-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h2>شكراً لتسجيلك</h2>
+                <p id="foujConfirmationText">معلوماتك وصلتنا بنجاح، حضور الحصة الأولى ضروري لتأكيد التسجيل.</p>
+                
+                <div id="saveStatusMessage" style="margin: 20px 0; padding: 15px; border-radius: 10px; display: none;">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>تم حفظ بياناتك في قاعدة البيانات المشتركة بنجاح! ✅</span>
+                </div>
+                
+                <button onclick="goToHome()" class="back-btn">
+                    <i class="fas fa-home"></i>
+                    العودة للصفحة الرئيسية
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- لوحة التحكم الإدارية -->
+    <div id="adminPanel" class="page" style="display:none;">
+        <div class="container">
+            <h2>لوحة التحكم الإدارية</h2>
+            
+            <!-- إحصائيات الأفواج -->
+            <div class="fouj-stats">
+                <h3>إحصائيات الأفواج (اضغط على أي فوج لعرض تلاميذه)</h3>
+                <div id="foujStatsContainer" class="stats-grid"></div>
+            </div>
+            
+            <div class="admin-controls">
+                <div class="export-buttons">
+                    <button onclick="exportAllToExcel()" class="export-btn">
+                        <i class="fas fa-file-excel"></i>
+                        تصدير جميع الأفواج إلى Excel
+                    </button>
+                    <button onclick="exportToJSON()" class="backup-btn">
+                        <i class="fas fa-download"></i>
+                        نسخة احتياطية (JSON)
+                    </button>
+                    <button onclick="refreshData()" class="export-btn" style="background: #28a745;">
+                        <i class="fas fa-sync-alt"></i>
+                        تحديث البيانات
+                    </button>
+                </div>
+                
+                <div class="fouj-controls">
+                    <select id="foujFilter" onchange="filterByFouj()">
+                        <option value="">جميع الأفواج</option>
+                    </select>
+                    <select id="branchFilter" onchange="filterStudents()">
+                        <option value="">جميع الشعب</option>
+                        <option value="علوم تجريبية">علوم تجريبية</option>
+                        <option value="تقني رياضي">تقني رياضي</option>
+                        <option value="رياضيات">رياضيات</option>
+                    </select>
+                    <select id="locationFilter" onchange="filterStudents()">
+                        <option value="">جميع المواقع</option>
+                        <option value="برج بوعريريج">برج بوعريريج</option>
+                        <option value="رأس الوادي">رأس الوادي</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="students-table">
+                <div class="table-scroll-hint">💡 يمكنك التمرير أفقياً لرؤية جميع الأعمدة</div>
+                <div class="table-header">
+                    <h3 id="currentFoujTitle">جميع الطلاب المسجلين</h3>
+                    <button onclick="exportCurrentFoujToExcel()" class="export-current-btn">
+                        <i class="fas fa-download"></i>
+                        تصدير الفوج الحالي
+                    </button>
+                </div>
+                <table id="studentsTable" dir="rtl">
+                    <thead>
+                        <tr>
+                            <th>الرقم</th>
+                            <th>الفوج</th>
+                            <th>الاسم واللقب</th>
+                            <th>نوع الطالب</th>
+                            <th>الثانوية</th>
+                            <th>الشعبة</th>
+                            <th>المعدل</th>
+                            <th>مستوى الرياضيات</th>
+                            <th>الهاتف الشخصي</th>
+                            <th>هاتف الولي</th>
+                            <th>مكان الدروس</th>
+                            <th>التوقيت</th>
+                            <th>تاريخ التسجيل</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة إدخال كلمة السر المحسنة -->
+    <div id="passwordModal" class="modal password-modal" style="display: none;">
+        <div class="modal-content password-modal-content">
+            <div class="password-header">
+                <i class="fas fa-shield-alt"></i>
+                <h3>الوصول للوحة التحكم الإدارية</h3>
+            </div>
+            <div class="password-body">
+                <p>يرجى إدخال كلمة المرور للمتابعة</p>
+                <div class="password-input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="adminPassword" placeholder="أدخل كلمة المرور" />
+                    <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
+                        <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                    </button>
+                </div>
+                <div class="password-buttons">
+                    <button class="btn-confirm" onclick="confirmPassword()">
+                        <i class="fas fa-sign-in-alt"></i>
+                        دخول
+                    </button>
+                    <button class="btn-cancel" onclick="cancelPassword()">
+                        <i class="fas fa-times"></i>
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تعديل الطالب -->
+    <div id="editStudentModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <h3 style="text-align: center; margin-bottom: 30px; color: #000;">
+                <i class="fas fa-edit"></i> تعديل بيانات الطالب
+            </h3>
+            
+            <form id="editStudentForm">
+                <!-- نوع الطالب -->
+                <div class="form-group">
+                    <label>نوع الطالب:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="editStudentType" value="نظامي" onchange="editToggleSchool(this)" />
+                            <span class="radio-icon">🎓</span>
+                            طالب نظامي
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="editStudentType" value="حر" onchange="editToggleSchool(this)" />
+                            <span class="radio-icon">📚</span>
+                            طالب حر
+                        </label>
+                    </div>
+                </div>
+
+                <!-- الثانوية -->
+                <div class="form-group" id="editSchoolContainer" style="display: none;">
+                    <label for="editSchool">اختر الثانوية:</label>
+                    <select id="editSchool" name="editSchool">
+                        <option value="">اختر الثانوية</option>
+                        <option value="مؤسسة التربية والتعليم القوس الأول الخاصة - برج بوعريريج">مؤسسة التربية والتعليم القوس الأول الخاصة - برج بوعريريج</option>
+                        <option value="ثانوية سيفي الطاهر - ثنية النصر">ثانوية سيفي الطاهر - ثنية النصر</option>
+                        <option value="ثانوية بلم عبد الحفيظ - أولاد ابراهيم">ثانوية بلم عبد الحفيظ - أولاد ابراهيم</option>
+                        <option value="ثانوية المجاهد يحى بو عزيز - الماين">ثانوية المجاهد يحى بو عزيز - الماين</option>
+                        <option value="ثانوية الشهيد بوز عرورة السعيد - برج بوعريريج">ثانوية الشهيد بوز عرورة السعيد - برج بوعريريج</option>
+                        <option value="ثانوية عيسى حميطوش - برج بوعريريج">ثانوية عيسى حميطوش - برج بوعريريج</option>
+                        <option value="ثانوية محمد د الشريف بوسام - برج غدير">ثانوية محمد د الشريف بوسام - برج غدير</option>
+                        <option value="ثانوية مالك بن نبي - برج غدير">ثانوية مالك بن نبي - برج غدير</option>
+                        <option value="ثانوية بن خروف يوسف - الجعافرة">ثانوية بن خروف يوسف - الجعافرة</option>
+                        <option value="ثانوية عمار بوجلال مبارك - مجانة">ثانوية عمار بوجلال مبارك - مجانة</option>
+                        <option value="ثانوية الشهيد زیوال علاوة - الجعافرة">ثانوية الشهيد زیوال علاوة - الجعافرة</option>
+                        <option value="ثانوية فارح محمد الطيب - القصور">ثانوية فارح محمد الطيب - القصور</option>
+                        <option value="ثانوية المجاهد المتوفي بن أحمد السعيد - برج بوعريريج">ثانوية المجاهد المتوفي بن أحمد السعيد - برج بوعريريج</option>
+                        <option value="ثانوية محمادي أحمد - العناصر">ثانوية محمادي أحمد - العناصر</option>
+                        <option value="ثانوية ابن احمد الخضر - العناصر">ثانوية ابن احمد الخضر - العناصر</option>
+                        <option value="ثانوية بن سخرية الطيب - المهير">ثانوية بن سخرية الطيب - المهير</option>
+                        <option value="ثانوية بهاء العلى - خليل">ثانوية بهاء العلى - خليل</option>
+                        <option value="ثانوية فارس الحسين - برج بوعريريج">ثانوية فارس الحسين - برج بوعريريج</option>
+                        <option value="ثانوية بوشمال محمد النذير - المنصورة">ثانوية بوشمال محمد النذير - المنصورة</option>
+                        <option value="ثانوية كيال عراس - تيكستار">ثانوية كيال عراس - تيكستار</option>
+                        <option value="ثانوية الشيخ عمر ابي حفص - برج زمورة">ثانوية الشيخ عمر ابي حفص - برج زمورة</option>
+                        <option value="ثانوية عبد المجيد بورزق - برج بوعريريج">ثانوية عبد المجيد بورزق - برج بوعريريج</option>
+                        <option value="ثانوية عبد اللافي بوضياف - عين تاغروت">ثانوية عبد اللافي بوضياف - عين تاغروت</option>
+                        <option value="ثانوية 545 شهيدا - غيلاسة">ثانوية 545 شهيدا - غيلاسة</option>
+                        <option value="ثانوية على ماضوي - برج بوعريريج">ثانوية على ماضوي - برج بوعريريج</option>
+                        <option value="ثانوية الشهيد بن دريميع احمد المدعو المطروش - برج غدير">ثانوية الشهيد بن دريميع احمد المدعو المطروش - برج غدير</option>
+                        <option value="ثانوية عبد الحميد بن باديس - المنصورة">ثانوية عبد الحميد بن باديس - المنصورة</option>
+                        <option value="ثانوية بوزراعة أحسن - رأس الوادي">ثانوية بوزراعة أحسن - رأس الوادي</option>
+                        <option value="ثانوية بلفار اسماعيل - أولاد دحمان">ثانوية بلفار اسماعيل - أولاد دحمان</option>
+                        <option value="ثانوية 16 شهيدا - بلیمور">ثانوية 16 شهيدا - بلیمور</option>
+                        <option value="ثانوية سقني عيسى - مجانة">ثانوية سقني عيسى - مجانة</option>
+                        <option value="ثانوية زيري مباركة - بن داود">ثانوية زيري مباركة - بن داود</option>
+                        <option value="ثانوية قصار عبد الله - القصور">ثانوية قصار عبد الله - القصور</option>
+                        <option value="ثانوية الاخوة رباح - رأس الوادي">ثانوية الاخوة رباح - رأس الوادي</option>
+                        <option value="ثانوية فرحات عباس - برج بوعريريج">ثانوية فرحات عباس - برج بوعريريج</option>
+                        <option value="ثانوية الشريف الرقط رأس الوادي">ثانوية الشريف الرقط رأس الوادي</option>
+                        <option value="ثانوية احمد خبابة - برج غدير">ثانوية احمد خبابة - برج غدير</option>
+                        <option value="ثانوية أول نوفمبر - برج بوعريريج">ثانوية أول نوفمبر - برج بوعريريج</option>
+                        <option value="مؤسسة التربية والتعليم التحدي الخاصة - برج بوعريريج">مؤسسة التربية والتعليم التحدي الخاصة - برج بوعريريج</option>
+                        <option value="ثانوية عبد الحميد آخروف - برج بوعريريج">ثانوية عبد الحميد آخروف - برج بوعريريج</option>
+                        <option value="ثانوية شكال محمد امزيان - القلة">ثانوية شكال محمد امزيان - القلة</option>
+                        <option value="ثانوية العمري بوعافية - حسناوة">ثانوية العمري بوعافية - حسناوة</option>
+                        <option value="ثانوية السعيد بوعلي - برج بوعريريج">ثانوية السعيد بوعلي - برج بوعريريج</option>
+                        <option value="ثانوية بلعيفة احمد - بن داود">ثانوية بلعيفة احمد - بن داود</option>
+                        <option value="ثانوية بلميهوب عبد الرحمان - برج بوعريريج">ثانوية بلميهوب عبد الرحمان - برج بوعريريج</option>
+                        <option value="ثانوية العربي عباسي - سيدي مبارك">ثانوية العربي عباسي - سيدي مبارك</option>
+                        <option value="ثانوية بوادي بوسواليم - رأس الوادي">ثانوية بوادي بوسواليم - رأس الوادي</option>
+                        <option value="ثانوية حريزي البشير - العش">ثانوية حريزي البشير - العش</option>
+                        <option value="ثانوية المجاهد المتوفي مجدوب محمد - برج بوعريريج">ثانوية المجاهد المتوفي مجدوب محمد - برج بوعريريج</option>
+                        <option value="ثانوية زرقون سليمان - خليل">ثانوية زرقون سليمان - خليل</option>
+                        <option value="ثانوية عبد الحق بن حمودة - المهير">ثانوية عبد الحق بن حمودة - المهير</option>
+                        <option value="ثانوية سالم صريفق - رأس الوادي">ثانوية سالم صريفق - رأس الوادي</option>
+                        <option value="ثانوية هواري بومدين - الياشير">ثانوية هواري بومدين - الياشير</option>
+                        <option value="ثانوية محمد المقراني - برج بوعريريج">ثانوية محمد المقراني - برج بوعريريج</option>
+                        <option value="ثانوية بن مساهل محمد - بئر قصد علي">ثانوية بن مساهل محمد - بئر قصد علي</option>
+                        <option value="ثانوية صاهد مبارك - الحمادية">ثانوية صاهد مبارك - الحمادية</option>
+                        <option value="ثانوية الأخوين الشهيدين يوسفی مولود و لعيفة - حرازة">ثانوية الأخوين الشهيدين يوسفی مولود و لعيفة - حرازة</option>
+                        <option value="ثانوية بالعروسي بن يحي - الرابطة">ثانوية بالعروسي بن يحي - الرابطة</option>
+                        <option value="ثانوية معركة قرن الكبش - تقلعيت">ثانوية معركة قرن الكبش - تقلعيت</option>
+                        <option value="ثانوية رماش عمر - عين تسرة">ثانوية رماش عمر - عين تسرة</option>
+                        <option value="ثانوية السعيد زروقي - برج بوعريريج">ثانوية السعيد زروقي - برج بوعريريج</option>
+                        <option value="ثانوية 18 فيفري - الحمادية">ثانوية 18 فيفري - الحمادية</option>
+                        <option value="ثانوية أخرى">ثانوية أخرى</option>
+                    </select>
+                </div>
+
+                <!-- الاسم واللقب -->
+                <div class="form-group">
+                    <label for="editFullName">الاسم واللقب:</label>
+                    <input type="text" id="editFullName" name="editFullName" required />
+                </div>
+
+                <!-- تاريخ الميلاد -->
+                <div class="form-group">
+                    <label for="editBirthDate">تاريخ الميلاد:</label>
+                    <input type="date" id="editBirthDate" name="editBirthDate" required />
+                </div>
+
+                <!-- الشعبة -->
+                <div class="form-group">
+                    <label>الشعبة:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="editBranch" value="علوم تجريبية" onchange="updateEditScheduleOptions()" />
+                            <span class="radio-icon">🔬</span>
+                            علوم تجريبية
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="editBranch" value="تقني رياضي" onchange="updateEditScheduleOptions()" />
+                            <span class="radio-icon">⚙️</span>
+                            تقني رياضي
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="editBranch" value="رياضيات" onchange="updateEditScheduleOptions()" />
+                            <span class="radio-icon">📐</span>
+                            رياضيات
+                        </label>
+                    </div>
+                </div>
+
+                <!-- المعدل العام -->
+                <div class="form-group">
+                    <label for="editAverageGrade">المعدل العام السنوي (ثانية ثانوي):</label>
+                    <input type="number" id="editAverageGrade" name="editAverageGrade" min="0" max="20" step="0.01" required />
+                </div>
+
+                <!-- المستوى في الرياضيات -->
+                <div class="form-group">
+                    <label for="editMathLevel">المستوى العام في مادة الرياضيات:</label>
+                    <select id="editMathLevel" name="editMathLevel" required>
+                        <option value="">اختر المستوى</option>
+                        <option value="ممتاز">ممتاز</option>
+                        <option value="جيد جداً">جيد جداً</option>
+                        <option value="جيد">جيد</option>
+                        <option value="مقبول">مقبول</option>
+                        <option value="ضعيف">ضعيف</option>
+                    </select>
+                </div>
+
+                <!-- رقم الهاتف الشخصي -->
+                <div class="form-group">
+                    <label for="editPersonalPhone">رقم الهاتف الشخصي:</label>
+                    <input type="tel" id="editPersonalPhone" name="editPersonalPhone" required />
+                </div>
+
+                <!-- رقم هاتف الولي -->
+                <div class="form-group">
+                    <label for="editGuardianPhone">رقم هاتف الولي:</label>
+                    <input type="tel" id="editGuardianPhone" name="editGuardianPhone" required />
+                </div>
+
+                <!-- مكان الدروس -->
+                <div class="form-group">
+                    <label>مكان الدروس الخصوصية:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="editLocation" value="برج بوعريريج" onchange="updateEditScheduleOptions()" />
+                            <span class="radio-icon">🏢</span>
+                            برج بوعريريج
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="editLocation" value="رأس الوادي" onchange="updateEditScheduleOptions()" />
+                            <span class="radio-icon">🏛️</span>
+                            رأس الوادي
+                        </label>
+                    </div>
+                </div>
+
+                <!-- خيارات التوقيت -->
+                <div class="form-group">
+                    <label>اختر التوقيت:</label>
+                    <div id="editScheduleChoices" class="radio-group">
+                        <!-- سيتم توليد خيارات التوقيت ديناميكياً -->
+                    </div>
+                </div>
+
+                <!-- أزرار التحكم -->
+                <div class="consent-buttons" style="margin-top: 30px;">
+                    <button type="submit" class="btn-yes">
+                        <i class="fas fa-save"></i> حفظ التغييرات
+                    </button>
+                    <button type="button" class="btn-no" onclick="closeEditStudentModal()">
+                        <i class="fas fa-times"></i> إلغاء
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- نافذة تأكيد الحذف -->
+    <div id="deleteConfirmModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div style="text-align: center; color: #e74c3c; margin-bottom: 20px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 4rem; margin-bottom: 15px;"></i>
+                <h3 style="color: #e74c3c; margin: 0;">تأكيد الحذف</h3>
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 30px;">
+                <p style="font-size: 1.2rem; color: #333; margin-bottom: 15px;">
+                    هل أنت متأكد من حذف الطالب؟
+                </p>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border: 2px solid #e9ecef;">
+                    <p style="margin: 0; font-weight: 600; color: #000;">
+                        <i class="fas fa-user"></i> <span id="deleteStudentName">اسم الطالب</span>
+                    </p>
+                </div>
+                <p style="color: #e74c3c; font-weight: 600; margin-top: 15px; margin-bottom: 0;">
+                    ⚠️ هذا الإجراء لا يمكن التراجع عنه!
+                </p>
+            </div>
+            
+            <div class="consent-buttons">
+                <button class="btn-no" onclick="proceedWithDelete()" style="background: #e74c3c; border-color: #e74c3c;">
+                    <i class="fas fa-trash"></i> نعم، احذف
+                </button>
+                <button class="btn-yes" onclick="cancelDelete()">
+                    <i class="fas fa-times"></i> إلغاء
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

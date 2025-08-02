@@ -413,9 +413,6 @@
         <div class="container">
             <h2>لوحة التحكم الإدارية</h2>
             
-            <!-- مربع العدد الإجمالي -->
-            <div id="totalCountContainer"></div>
-        
             <!-- إحصائيات الأفواج -->
             <div class="fouj-stats">
                 <h3>إحصائيات الأفواج (اضغط على أي فوج لعرض تلاميذه)</h3>
@@ -720,42 +717,37 @@
     </div>
 
     <!-- نافذة تأكيد الحذف -->
-    <div id="deleteConfirmModal" class="modal delete-confirm-modal" style="display: none;">
-    <div class="modal-content">
-        <div class="delete-header">
-            <div class="delete-icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <h3>تأكيد حذف الطالب</h3>
-        </div>
-        
-        <div class="delete-body">
-            <div class="delete-warning">
-                <p>هل أنت متأكد من حذف هذا الطالب من النظام؟</p>
-                
-                <div class="student-info-card">
-                    <p class="student-name">
-                        <i class="fas fa-user"></i>
-                        <span id="deleteStudentName">اسم الطالب</span>
-                    </p>
-                </div>
-                
-                <div class="final-warning">
-                    <p>هذا الإجراء لا يمكن التراجع عنه!</p>
-                </div>
+    <div id="deleteConfirmModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div style="text-align: center; color: #e74c3c; margin-bottom: 20px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 4rem; margin-bottom: 15px;"></i>
+                <h3 style="color: #e74c3c; margin: 0;">تأكيد الحذف</h3>
             </div>
             
-            <div class="delete-buttons">
-                <button class="btn-delete-confirm" onclick="proceedWithDelete()">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <p style="font-size: 1.2rem; color: #333; margin-bottom: 15px;">
+                    هل أنت متأكد من حذف الطالب؟
+                </p>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border: 2px solid #e9ecef;">
+                    <p style="margin: 0; font-weight: 600; color: #000;">
+                        <i class="fas fa-user"></i> <span id="deleteStudentName">اسم الطالب</span>
+                    </p>
+                </div>
+                <p style="color: #e74c3c; font-weight: 600; margin-top: 15px; margin-bottom: 0;">
+                    ⚠️ هذا الإجراء لا يمكن التراجع عنه!
+                </p>
+            </div>
+            
+            <div class="consent-buttons">
+                <button class="btn-no" onclick="proceedWithDelete()" style="background: #e74c3c; border-color: #e74c3c;">
                     <i class="fas fa-trash"></i> نعم، احذف
                 </button>
-                <button class="btn-delete-cancel" onclick="cancelDelete()">
+                <button class="btn-yes" onclick="cancelDelete()">
                     <i class="fas fa-times"></i> إلغاء
                 </button>
             </div>
         </div>
     </div>
-</div>
 
     <script src="script.js"></script>
 </body>

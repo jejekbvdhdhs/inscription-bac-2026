@@ -34,6 +34,75 @@ body {
     display: block;
 }
 
+/* مؤشر التحميل */
+#loadingIndicator {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    border: 2px solid #000;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #000;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+#loadingIndicator p {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+/* حالة الاتصال بقاعدة البيانات */
+#connectionStatus {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 9998;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: #27ae60;
+    color: white;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#connectionStatus.offline {
+    background: #e74c3c;
+}
+
+#connectionStatus.connecting {
+    background: #f39c12;
+}
+
+#connectionStatus i {
+    font-size: 0.7rem;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 /* الرموز الرياضياتية المتحركة في الخلفية */
 .math-symbols {
     position: fixed;
@@ -121,6 +190,19 @@ body {
 .notice i {
     font-size: 1.2rem;
     color: #f39c12;
+}
+
+/* إشعار حالة قاعدة البيانات */
+#dbStatusNotice {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 2px solid #ffc107;
+}
+
+#dbStatusNotice.connected {
+    background-color: #d4edda;
+    color: #155724;
+    border-color: #28a745;
 }
 
 /* لافتة التسعيرة */
@@ -593,6 +675,29 @@ body {
     box-shadow: 0 8px 25px rgba(149, 165, 166, 0.3);
 }
 
+/* رسائل حفظ البيانات */
+#saveStatusMessage {
+    background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+    color: white;
+    text-align: center;
+    font-weight: 600;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+}
+
+#saveStatusMessage.warning {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+}
+
+#saveStatusMessage i {
+    font-size: 1.2rem;
+}
+
 /* صفحة التسجيل */
 .form-container {
     background-color: #ffffff;
@@ -729,6 +834,8 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
     margin-top: 30px;
+    position: relative;
+    overflow: hidden;
 }
 
 .submit-btn:hover {
@@ -742,6 +849,24 @@ body {
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+}
+
+.submit-btn.loading {
+    pointer-events: none;
+}
+
+.submit-btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid white;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }
 
 .submit-btn i {
@@ -802,7 +927,7 @@ body {
     margin-left: 10px;
 }
 
-/* إحصائيات الأفواج (تم تغيير الاسم) */
+/* إحصائيات الأفواج */
 .fouj-stats {
     background-color: #ffffff;
     border-radius: 15px;
@@ -964,12 +1089,23 @@ body {
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
 }
 
 .export-btn:hover, .backup-btn:hover, .export-current-btn:hover {
     background-color: #333333;
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* زر التحديث بلون مختلف */
+.export-btn[style*="background: #28a745"] {
+    background: #28a745 !important;
+}
+
+.export-btn[style*="background: #28a745"]:hover {
+    background: #218838 !important;
 }
 
 .fouj-controls select {
@@ -999,7 +1135,7 @@ body {
     font-weight: 700;
 }
 
-/* جدول الطلاب (محسن وعريض) */
+/* جدول الطلاب */
 .students-table {
     background-color: #ffffff;
     border-radius: 15px;
@@ -1077,7 +1213,7 @@ body {
     background-color: #f8f9fa;
 }
 
-/* أزرار الإجراءات المحسنة والجميلة */
+/* أزرار الإجراءات */
 .action-buttons {
     display: flex;
     gap: 8px;
@@ -1105,7 +1241,6 @@ body {
     overflow: hidden;
 }
 
-/* زر التغيير - تدرج أزرق جميل */
 .btn-edit {
     background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
     color: white;
@@ -1118,11 +1253,6 @@ body {
     box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
 }
 
-.btn-edit:active {
-    transform: translateY(0);
-}
-
-/* زر الحذف - تدرج أحمر جميل */
 .btn-delete {
     background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
     color: white;
@@ -1135,41 +1265,15 @@ body {
     box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
 }
 
-.btn-delete:active {
+.btn-edit:active, .btn-delete:active {
     transform: translateY(0);
 }
 
-/* تأثير الموجة عند الضغط */
-.btn-edit::before, .btn-delete::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: translate(-50%, -50%);
-    transition: width 0.6s, height 0.6s;
-}
-
-.btn-edit:active::before, .btn-delete:active::before {
-    width: 120px;
-    height: 120px;
-}
-
-/* أيقونات الأزرار */
 .btn-edit i, .btn-delete i {
     font-size: 0.9rem;
 }
 
-/* تمييز الأفواج بألوان مختلفة */
-.fouj-1 { border-left: 5px solid #007bff; }
-.fouj-2 { border-left: 5px solid #28a745; }
-.fouj-3 { border-left: 5px solid #ffc107; }
-.fouj-4 { border-left: 5px solid #dc3545; }
-
-/* لافتات التحذير والنجاح المحسنة - عرض كامل */
+/* لافتات التحذير والنجاح */
 .alert-success, .alert-danger {
     position: fixed;
     top: 0;
@@ -1215,7 +1319,7 @@ body {
     }
 }
 
-/* نافذة تأكيد الحذف المحسنة */
+/* نافذة تأكيد الحذف */
 @keyframes bounceIn {
     0% {
         opacity: 0;
@@ -1345,6 +1449,43 @@ body {
     box-shadow: 0 8px 25px rgba(108, 117, 125, 0.3);
 }
 
+/* أنماط التحميل والدوران */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* تحسين ظهور رمز لوحة التحكم */
+.admin-control-button {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    z-index: 9999 !important;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    color: #000000 !important;
+    border: 3px solid #000000 !important;
+    padding: 15px !important;
+    font-size: 24px !important;
+    cursor: pointer !important;
+    border-radius: 50% !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+    transition: all 0.3s ease !important;
+    width: 60px !important;
+    height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* تحسينات خاصة للجدول */
+.table-scroll-hint {
+    text-align: center;
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    display: none;
+}
+
 /* تصميم متجاوب محسن */
 @media (max-width: 1200px) {
     .container {
@@ -1354,6 +1495,10 @@ body {
     
     #studentsTable {
         min-width: 1200px;
+    }
+    
+    .table-scroll-hint {
+        display: block;
     }
 }
 
@@ -1490,6 +1635,19 @@ body {
     .delete-buttons {
         flex-direction: column;
     }
+    
+    #connectionStatus {
+        top: 5px;
+        left: 5px;
+        font-size: 0.7rem;
+        padding: 5px 10px;
+    }
+    
+    #loadingIndicator {
+        margin: 5% auto;
+        max-width: 90%;
+        padding: 20px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1591,46 +1749,4 @@ body {
     border-top: 2px solid transparent;
     border-radius: 50%;
     animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* تحسين ظهور رمز لوحة التحكم */
-.admin-control-button {
-    position: fixed !important;
-    top: 20px !important;
-    right: 20px !important;
-    z-index: 9999 !important;
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    color: #000000 !important;
-    border: 3px solid #000000 !important;
-    padding: 15px !important;
-    font-size: 24px !important;
-    cursor: pointer !important;
-    border-radius: 50% !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
-    transition: all 0.3s ease !important;
-    width: 60px !important;
-    height: 60px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-/* تحسينات خاصة للجدول */
-.table-scroll-hint {
-    text-align: center;
-    color: #666;
-    font-size: 0.9rem;
-    margin-bottom: 10px;
-    display: none;
-}
-
-@media (max-width: 1200px) {
-    .table-scroll-hint {
-        display: block;
-    }
 }

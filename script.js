@@ -1,9 +1,10 @@
-// بيانات الطلاب المسجلين مع نظام الأفواج الجديد
-let registeredStudents = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+// بيانات الطلاب المسجلين مع Firebase
+let registeredStudents = [];
 const MAX_STUDENTS_PER_FOUJ = 50;
-let currentSelectedFouj = ''; // متغير لتتبع الفوج المختار
+let currentSelectedFouj = '';
+let isFirebaseReady = false;
 
-// تعريف أسماء الأفواج (تم تغيير "فوجات" إلى "أفواج")
+// تعريف أسماء الأفواج
 const FOUJ_NAMES = {
     'رأس الوادي_يوم الجمعة صباحا الساعة 9:00': 'فوج رأس الوادي 9:00',
     'برج بوعريريج_يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)': 'فوج البرج رياضيات+تقني 8:00',
@@ -39,7 +40,215 @@ const FOUJ_OPTIONS = [
     }
 ];
 
-// دوال إدارة الأفواج الجديدة
+// ===== دوال Firebase =====
+
+// تحديث حالة الاتصال
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('statusText');
+    
+    if (statusElement && statusText) {
+        statusElement.style.display = 'flex';
+        statusElement.className = 'connection-status ' + status;
+        
+        switch(status) {
+            case 'connected':
+                statusElement.style.background = '#27ae60';
+                statusText.textContent = 'متصل';
+                break;
+            case 'offline':
+                statusElement.style.background = '#e74c3c';
+                statusText.textContent = 'غير متصل';
+                break;
+            case 'connecting':
+                statusElement.style.background = '#f39c12';
+                statusText.textContent = 'يتصل...';
+                break;
+        }
+        
+        // إخفاء حالة الاتصال بعد 5 ثواني إذا كان متصلاً
+        if (status === 'connected') {
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 5000);
+        }
+    }
+}
+
+// تهيئة Firebase والتحقق من الاتصال
+function initializeFirebase() {
+    if (typeof firebase !== 'undefined' && window.db) {
+        isFirebaseReady = true;
+        updateConnectionStatus('connected');
+        console.log('✅ Firebase جاهز للاستخدام');
+        
+        // إخفاء إشعار قاعدة البيانات إذا كان ظاهراً
+        const dbNotice = document.getElementById('dbStatusNotice');
+        if (dbNotice) {
+            dbNotice.style.display = 'none';
+        }
+        
+        return true;
+    } else {
+        isFirebaseReady = false;
+        updateConnectionStatus('offline');
+        console.warn('⚠️ Firebase غير متاح - سيتم استخدام التخزين المحلي');
+        
+        // إظهار إشعار قاعدة البيانات
+        const dbNotice = document.getElementById('dbStatusNotice');
+        if (dbNotice) {
+            dbNotice.style.display = 'flex';
+        }
+        
+        return false;
+    }
+}
+
+// حفظ طالب جديد في Firebase
+async function saveStudentToFirebase(studentData) {
+    if (!isFirebaseReady) {
+        console.log('📱 Firebase غير متاح - حفظ محلي');
+        return false;
+    }
+    
+    try {
+        updateConnectionStatus('connecting');
+        
+        const docRef = await db.collection('students').add({
+            ...studentData,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            createdAt: new Date().toISOString()
+        });
+        
+        // تحديث البيانات المحلية بالـ ID الجديد
+        studentData.firebaseId = docRef.id;
+        
+        updateConnectionStatus('connected');
+        console.log('✅ تم حفظ الطالب في Firebase:', docRef.id);
+        return true;
+    } catch (error) {
+        console.error('❌ خطأ في حفظ البيانات:', error);
+        updateConnectionStatus('offline');
+        return false;
+    }
+}
+
+// تحميل البيانات من Firebase
+async function loadStudentsFromFirebase() {
+    if (!isFirebaseReady) {
+        console.log('📱 تحميل البيانات المحلية');
+        registeredStudents = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+        return registeredStudents;
+    }
+    
+    try {
+        showLoadingIndicator(true);
+        updateConnectionStatus('connecting');
+        
+        const snapshot = await db.collection('students')
+            .orderBy('timestamp', 'desc')
+            .get();
+        
+        const students = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            students.push({
+                firebaseId: doc.id,
+                id: data.id || Date.now() + Math.random(),
+                ...data
+            });
+        });
+        
+        registeredStudents = students;
+        
+        // تحديث التخزين المحلي كنسخة احتياطية
+        localStorage.setItem('registeredStudents', JSON.stringify(students));
+        
+        updateConnectionStatus('connected');
+        console.log(`✅ تم تحميل ${students.length} طالب من Firebase`);
+        
+        return students;
+    } catch (error) {
+        console.error('❌ خطأ في تحميل البيانات:', error);
+        updateConnectionStatus('offline');
+        
+        // في حالة الفشل، استخدم البيانات المحلية
+        const localData = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+        registeredStudents = localData;
+        return localData;
+    } finally {
+        showLoadingIndicator(false);
+    }
+}
+
+// حذف طالب من Firebase
+async function deleteStudentFromFirebase(student) {
+    if (!isFirebaseReady || !student.firebaseId) {
+        console.log('📱 Firebase غير متاح أو لا يوجد ID - حذف محلي فقط');
+        return false;
+    }
+    
+    try {
+        updateConnectionStatus('connecting');
+        await db.collection('students').doc(student.firebaseId).delete();
+        updateConnectionStatus('connected');
+        console.log('✅ تم حذف الطالب من Firebase');
+        return true;
+    } catch (error) {
+        console.error('❌ خطأ في حذف البيانات:', error);
+        updateConnectionStatus('offline');
+        return false;
+    }
+}
+
+// تحديث بيانات طالب في Firebase
+async function updateStudentInFirebase(student, updates) {
+    if (!isFirebaseReady || !student.firebaseId) {
+        console.log('📱 Firebase غير متاح أو لا يوجد ID - تحديث محلي فقط');
+        return false;
+    }
+    
+    try {
+        updateConnectionStatus('connecting');
+        await db.collection('students').doc(student.firebaseId).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        updateConnectionStatus('connected');
+        console.log('✅ تم تحديث الطالب في Firebase');
+        return true;
+    } catch (error) {
+        console.error('❌ خطأ في تحديث البيانات:', error);
+        updateConnectionStatus('offline');
+        return false;
+    }
+}
+
+// تحديث البيانات يدوياً
+async function refreshData() {
+    console.log('🔄 تحديث البيانات...');
+    await loadStudentsFromFirebase();
+    
+    // تحديث العرض إذا كنا في لوحة التحكم
+    if (document.getElementById('adminPanel').classList.contains('active')) {
+        displayFoujStats();
+        displayStudentsTable();
+        showAlert('🔄 تم تحديث البيانات بنجاح!', 'success');
+    }
+}
+
+// ===== دوال أساسية =====
+
+// إظهار/إخفاء مؤشر التحميل
+function showLoadingIndicator(show) {
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) {
+        indicator.style.display = show ? 'block' : 'none';
+    }
+}
+
+// دوال إدارة الأفواج
 function getFoujName(location, schedule) {
     const key = `${location}_${schedule}`;
     return FOUJ_NAMES[key] || `فوج ${location}`;
@@ -108,10 +317,8 @@ function showAlert(message, type = 'success') {
         <span>${message}</span>
     `;
     
-    // إضافة اللافتة في أعلى الصفحة
     document.body.appendChild(alertDiv);
     
-    // إزالة اللافتة بعد 4 ثواني
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.style.transform = 'translateY(-100%)';
@@ -122,28 +329,25 @@ function showAlert(message, type = 'success') {
     }, 4000);
 }
 
-// عرض نافذة الموافقة
+// ===== دوال واجهة المستخدم =====
+
 function showConsent() {
     document.getElementById('consentModal').style.display = 'block';
 }
 
-// إغلاق نافذة الموافقة
 function closeConsent() {
     document.getElementById('consentModal').style.display = 'none';
 }
 
-// الانتقال لصفحة التسجيل
 function goToRegistration() {
     closeConsent();
     showPage('registrationPage');
 }
 
-// الانتقال للصفحة الرئيسية
 function goToHome() {
     showPage('homePage');
 }
 
-// عرض صفحة معينة
 function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
@@ -167,22 +371,18 @@ function checkAndShowFoujNotice() {
                 <i class="fas fa-exclamation-triangle"></i>
                 <span>تنبيه: ${foujName} مكتمل (${MAX_STUDENTS_PER_FOUJ} طالب). لا يمكن التسجيل في هذا الفوج.</span>
             `;
-            // تعطيل زر الإرسال
             const submitBtn = document.querySelector('.submit-btn');
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.style.opacity = '0.5';
-                submitBtn.style.cursor = 'not-allowed';
             }
             return false;
         } else {
             notice.style.display = 'none';
-            // تفعيل زر الإرسال
             const submitBtn = document.querySelector('.submit-btn');
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.style.opacity = '1';
-                submitBtn.style.cursor = 'pointer';
             }
             return true;
         }
@@ -275,6 +475,8 @@ function updateScheduleOptions() {
     }
 }
 
+// ===== دوال الحذف والتعديل =====
+
 // نافذة تأكيد الحذف المحسنة
 function showDeleteConfirmation(student) {
     const modal = document.createElement('div');
@@ -320,7 +522,6 @@ function showDeleteConfirmation(student) {
     document.body.appendChild(modal);
 }
 
-// إلغاء حذف الطالب
 function cancelStudentDeletion() {
     const modal = document.querySelector('.delete-confirmation-modal');
     if (modal) {
@@ -331,8 +532,8 @@ function cancelStudentDeletion() {
     }
 }
 
-// تأكيد حذف الطالب
-function confirmStudentDeletion(id) {
+// تأكيد حذف الطالب مع Firebase
+async function confirmStudentDeletion(id) {
     const studentIndex = registeredStudents.findIndex(s => s.id == id);
     if (studentIndex === -1) {
         showAlert('الطالب غير موجود', 'danger');
@@ -340,26 +541,30 @@ function confirmStudentDeletion(id) {
         return;
     }
     
-    const studentName = registeredStudents[studentIndex].fullName;
-    const foujName = registeredStudents[studentIndex].foujName;
+    const student = registeredStudents[studentIndex];
+    const studentName = student.fullName;
+    const foujName = student.foujName;
     
+    // محاولة حذف من Firebase
+    const deletedFromFirebase = await deleteStudentFromFirebase(student);
+    
+    // حذف من المصفوفة المحلية
     registeredStudents.splice(studentIndex, 1);
-    
-    // حفظ البيانات المحدثة
     localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
     
     // تحديث العرض
     displayFoujStats();
     displayStudentsTable();
     
-    // إغلاق النافذة
     cancelStudentDeletion();
     
-    // عرض لافتة نجاح جميلة
-    showAlert(`🗑️ تم حذف الطالب "${studentName}" من ${foujName} نهائياً`, 'success');
+    if (deletedFromFirebase) {
+        showAlert(`🗑️ تم حذف الطالب "${studentName}" من ${foujName} نهائياً من جميع الأجهزة`, 'success');
+    } else {
+        showAlert(`🗑️ تم حذف الطالب "${studentName}" من ${foujName} محلياً`, 'warning');
+    }
 }
 
-// حذف طالب من الفوج مع نافذة تأكيد محسنة
 function deleteStudent(id) {
     const student = registeredStudents.find(s => s.id == id);
     if (!student) {
@@ -367,7 +572,6 @@ function deleteStudent(id) {
         return;
     }
     
-    // عرض نافذة التأكيد المحسنة
     showDeleteConfirmation(student);
 }
 
@@ -379,12 +583,10 @@ function changeStudentFouj(id) {
         return;
     }
     
-    // إنشاء نافذة اختيار الفوج الجديد
     const modal = createFoujChangeModal(student);
     document.body.appendChild(modal);
 }
 
-// إنشاء نافذة تغيير الفوج المحسنة
 function createFoujChangeModal(student) {
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -436,8 +638,8 @@ function createFoujChangeModal(student) {
     return modal;
 }
 
-// تأكيد تغيير الفوج مع لافتة جميلة
-function confirmFoujChange(studentId) {
+// تأكيد تغيير الفوج مع Firebase
+async function confirmFoujChange(studentId) {
     const modal = document.querySelector('.modal');
     const selectedFouj = modal.querySelector('input[name="newFouj"]:checked');
     
@@ -452,7 +654,6 @@ function confirmFoujChange(studentId) {
         return;
     }
     
-    // العثور على بيانات الفوج الجديد
     const newFoujData = FOUJ_OPTIONS.find(option => option.key === selectedFouj.value);
     
     if (!newFoujData) {
@@ -460,7 +661,6 @@ function confirmFoujChange(studentId) {
         return;
     }
     
-    // التحقق من عدم اختيار نفس الفوج
     if (student.foujKey === selectedFouj.value) {
         showAlert('الطالب موجود بالفعل في هذا الفوج', 'danger');
         return;
@@ -469,26 +669,34 @@ function confirmFoujChange(studentId) {
     const oldFoujName = student.foujName;
     
     // تحديث بيانات الطالب
-    student.location = newFoujData.location;
-    student.schedule = newFoujData.schedule;
-    student.foujKey = newFoujData.key;
-    student.foujName = newFoujData.name;
+    const updates = {
+        location: newFoujData.location,
+        schedule: newFoujData.schedule,
+        foujKey: newFoujData.key,
+        foujName: newFoujData.name
+    };
     
-    // حفظ البيانات المحدثة
+    Object.assign(student, updates);
+    
+    // محاولة تحديث في Firebase
+    const updatedInFirebase = await updateStudentInFirebase(student, updates);
+    
+    // حفظ البيانات المحدثة محلياً
     localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
     
     // تحديث العرض
     displayFoujStats();
     displayStudentsTable();
     
-    // إغلاق النافذة
     closeFoujChangeModal();
     
-    // عرض لافتة نجاح جميلة
-    showAlert(`🔄 تم تغيير فوج الطالب "${student.fullName}" من "${oldFoujName}" إلى "${student.foujName}" بنجاح`, 'success');
+    if (updatedInFirebase) {
+        showAlert(`🔄 تم تغيير فوج الطالب "${student.fullName}" من "${oldFoujName}" إلى "${student.foujName}" في جميع الأجهزة`, 'success');
+    } else {
+        showAlert(`🔄 تم تغيير فوج الطالب "${student.fullName}" من "${oldFoujName}" إلى "${student.foujName}" محلياً`, 'warning');
+    }
 }
 
-// إغلاق نافذة تغيير الفوج
 function closeFoujChangeModal() {
     const modal = document.querySelector('.modal');
     if (modal) {
@@ -496,301 +704,50 @@ function closeFoujChangeModal() {
     }
 }
 
-// فلترة بمربعات الأفواج القابلة للضغط
+// ===== دوال الفلترة والعرض =====
+
 function filterByFoujCard(foujKey) {
-    // إزالة التحديد من جميع المربعات
     document.querySelectorAll('.stat-card').forEach(card => {
         card.classList.remove('active');
     });
     
-    // تحديد المربع المضغوط
     const selectedCard = document.querySelector(`[data-fouj-key="${foujKey}"]`);
     if (selectedCard) {
         selectedCard.classList.add('active');
     }
     
-    // تحديث الفلتر
     const foujFilter = document.getElementById('foujFilter');
     if (foujFilter) {
         foujFilter.value = foujKey;
     }
     
-    // عرض طلاب الفوج المختار فقط
     currentSelectedFouj = foujKey;
     displayStudentsTable('', '', foujKey);
 }
 
-// إلغاء فلترة الفوج
 function clearFoujFilter() {
-    // إزالة التحديد من جميع المربعات
     document.querySelectorAll('.stat-card').forEach(card => {
         card.classList.remove('active');
     });
     
-    // إعادة تعيين الفلتر
     const foujFilter = document.getElementById('foujFilter');
     if (foujFilter) {
         foujFilter.value = '';
     }
     
-    // عرض جميع الطلاب
     currentSelectedFouj = '';
     displayStudentsTable();
 }
 
-// معالجة إرسال النموذج
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('registrationForm');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // جمع البيانات
-            const formData = new FormData(this);
-            const location = formData.get('location');
-            const schedule = formData.get('schedule');
-            
-            // فحص سعة الفوج
-            const currentCount = checkFoujCapacity(location, schedule);
-            if (currentCount >= MAX_STUDENTS_PER_FOUJ) {
-                showAlert('عذراً، هذا الفوج مكتمل. يرجى اختيار فوج آخر.', 'danger');
-                return;
-            }
-            
-            // إنشاء بيانات الطالب
-            const studentData = {
-                id: Date.now(),
-                registrationDate: new Date().toLocaleDateString('ar-DZ'),
-                foujKey: getFoujKey(location, schedule),
-                foujName: getFoujName(location, schedule),
-                studentType: formData.get('studentType'),
-                school: formData.get('school') || 'غير محدد',
-                fullName: formData.get('fullName'),
-                birthDate: formData.get('birthDate'),
-                branch: formData.get('branch'),
-                averageGrade: formData.get('averageGrade'),
-                mathLevel: formData.get('mathLevel'),
-                personalPhone: formData.get('personalPhone'),
-                guardianPhone: formData.get('guardianPhone'),
-                location: location,
-                schedule: schedule
-            };
-            
-            // إضافة البيانات للقائمة
-            registeredStudents.push(studentData);
-            
-            // حفظ البيانات في التخزين المحلي
-            localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
-            
-            // تحديث نص التأكيد
-            const confirmationText = document.getElementById('foujConfirmationText');
-            if (confirmationText) {
-                confirmationText.innerHTML = `تم تسجيلك بنجاح في <strong>${studentData.foujName}</strong>.<br>معلوماتك وصلتنا بنجاح، حضور الحصة الأولى ضروري لتأكيد التسجيل.`;
-            }
-            
-            // عرض صفحة التأكيد
-            showPage('confirmationPage');
-            
-            // إعادة تعيين النموذج
-            this.reset();
-            document.getElementById('schoolField').style.display = 'none';
-            document.getElementById('scheduleOptions').style.display = 'none';
-            document.getElementById('mapContainer').style.display = 'none';
-            const notice = document.getElementById('foujFullNotice');
-            if (notice) notice.style.display = 'none';
-        });
-    }
-    
-    // إنشاء زر لوحة التحكم
-    setTimeout(createAdminButton, 500);
-    
-    // إضافة الرموز الرياضياتية
-    setTimeout(addMoreMathSymbols, 1000);
-    
-    // تحديث معلومات الأفواج للطلاب الموجودين
-    updateStudentsFoujInfo();
-});
-
-// تصدير جميع الأفواج إلى ملفات Excel منفصلة
-function exportAllToExcel() {
-    if (registeredStudents.length === 0) {
-        alert('لا توجد بيانات للتصدير');
-        return;
-    }
-    
-    const foujStats = getFoujStats();
-    const totalFoujs = Object.keys(foujStats).length;
-    
-    if (confirm(`سيتم إنشاء ${totalFoujs} ملف Excel منفصل لكل فوج. هل تريد المتابعة؟`)) {
-        Object.keys(foujStats).forEach(foujKey => {
-            const fouj = foujStats[foujKey];
-            if (fouj.count > 0) { // تصدير الأفواج التي تحتوي على طلاب فقط
-                exportFoujToExcel(fouj.name, fouj.students);
-            }
-        });
-        
-        alert(`تم تصدير ملفات Excel بنجاح!`);
-    }
-}
-
-// تصدير فوج محدد إلى Excel
-function exportFoujToExcel(foujName, students) {
-    // إنشاء جدول HTML
-    let htmlTable = `
-        <table border="1" style="border-collapse: collapse;">
-            <thead>
-                <tr style="background-color: #000000; color: white;">
-                    <th style="padding: 10px;">الرقم</th>
-                    <th style="padding: 10px;">الاسم واللقب</th>
-                    <th style="padding: 10px;">نوع الطالب</th>
-                    <th style="padding: 10px;">الثانوية</th>
-                    <th style="padding: 10px;">تاريخ الميلاد</th>
-                    <th style="padding: 10px;">الشعبة</th>
-                    <th style="padding: 10px;">المعدل</th>
-                    <th style="padding: 10px;">مستوى الرياضيات</th>
-                    <th style="padding: 10px;">الهاتف الشخصي</th>
-                    <th style="padding: 10px;">هاتف الولي</th>
-                    <th style="padding: 10px;">تاريخ التسجيل</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-    
-    // إضافة البيانات للجدول
-    students.forEach((student, index) => {
-        htmlTable += `
-            <tr ${index % 2 === 0 ? 'style="background-color: #f8f9fa;"' : ''}>
-                <td style="padding: 8px; text-align: center;">${index + 1}</td>
-                <td style="padding: 8px;">${student.fullName}</td>
-                <td style="padding: 8px; text-align: center;">${student.studentType}</td>
-                <td style="padding: 8px;">${student.school}</td>
-                <td style="padding: 8px; text-align: center;">${student.birthDate}</td>
-                <td style="padding: 8px; text-align: center;">${student.branch}</td>
-                <td style="padding: 8px; text-align: center;">${student.averageGrade}</td>
-                <td style="padding: 8px; text-align: center;">${student.mathLevel}</td>
-                <td style="padding: 8px; text-align: center;">${student.personalPhone}</td>
-                <td style="padding: 8px; text-align: center;">${student.guardianPhone}</td>
-                <td style="padding: 8px; text-align: center;">${student.registrationDate}</td>
-            </tr>
-        `;
-    });
-    
-    htmlTable += '</tbody></table>';
-    
-    // إنشاء محتوى Excel
-    const excelContent = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-              xmlns:x="urn:schemas-microsoft-com:office:excel" 
-              xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-            <meta charset="utf-8">
-            <meta name="ProgId" content="Excel.Sheet">
-            <meta name="Generator" content="Microsoft Excel 15">
-            <style>
-                body { font-family: Arial, sans-serif; direction: rtl; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #000; padding: 8px; text-align: right; }
-                th { background-color: #000000; color: white; font-weight: bold; }
-                tr:nth-child(even) { background-color: #f8f9fa; }
-            </style>
-        </head>
-        <body>
-            <h2 style="text-align: center; color: #000000; margin-bottom: 20px;">
-                ${foujName} - دروس الدعم في الرياضيات - بكالوريا 2026
-            </h2>
-            <p style="text-align: center; color: #333333; margin-bottom: 30px;">
-                الأستاذ بلعياضي أكرم | عدد الطلاب: ${students.length} | تاريخ التصدير: ${new Date().toLocaleDateString('ar-DZ')}
-            </p>
-            ${htmlTable}
-        </body>
-        </html>
-    `;
-    
-    // إنشاء ملف Excel
-    const blob = new Blob(['\ufeff', excelContent], {
-        type: 'application/vnd.ms-excel;charset=utf-8'
-    });
-    
-    // تنزيل الملف
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = `${foujName.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('ar-DZ').replace(/\//g, '-')}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// تصدير الفوج الحالي المعروض
-function exportCurrentFoujToExcel() {
-    const foujFilter = document.getElementById('foujFilter');
-    const selectedFouj = foujFilter ? foujFilter.value : '';
-    
-    if (selectedFouj) {
-        const foujStats = getFoujStats();
-        const fouj = foujStats[selectedFouj];
-        if (fouj && fouj.count > 0) {
-            exportFoujToExcel(fouj.name, fouj.students);
-            alert(`تم تصدير ${fouj.name} بنجاح!`);
-        } else {
-            alert('هذا الفوج فارغ، لا توجد بيانات للتصدير');
-        }
-    } else {
-        // تصدير جميع الطلاب
-        if (registeredStudents.length > 0) {
-            exportFoujToExcel('جميع_الطلاب', registeredStudents);
-            alert('تم تصدير جميع الطلاب بنجاح!');
-        } else {
-            alert('لا توجد بيانات للتصدير');
-        }
-    }
-}
-
-// وظيفة إضافية لتصدير البيانات كـ JSON (للنسخ الاحتياطي)
-function exportToJSON() {
-    if (registeredStudents.length === 0) {
-        alert('لا توجد بيانات للتصدير');
-        return;
-    }
-    
-    const foujStats = getFoujStats();
-    const jsonData = {
-        exportDate: new Date().toISOString(),
-        totalStudents: registeredStudents.length,
-        totalFoujs: Object.keys(foujStats).length,
-        foujStats: foujStats,
-        students: registeredStudents
-    };
-    
-    const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
-        type: 'application/json;charset=utf-8'
-    });
-    
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = `backup_students_${new Date().toLocaleDateString('ar-DZ').replace(/\//g, '-')}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    alert('تم إنشاء النسخة الاحتياطية بنجاح!');
-}
-
-// فلترة حسب الفوج
 function filterByFouj() {
     const foujFilter = document.getElementById('foujFilter').value;
     const branchFilter = document.getElementById('branchFilter').value;
     const locationFilter = document.getElementById('locationFilter').value;
     
-    // إزالة التحديد من المربعات إذا تم استخدام القائمة المنسدلة
     document.querySelectorAll('.stat-card').forEach(card => {
         card.classList.remove('active');
     });
     
-    // تحديد المربع المناسب
     if (foujFilter) {
         const selectedCard = document.querySelector(`[data-fouj-key="${foujFilter}"]`);
         if (selectedCard) {
@@ -802,7 +759,6 @@ function filterByFouj() {
     displayStudentsTable(branchFilter, locationFilter, foujFilter);
 }
 
-// فلترة الطلاب
 function filterStudents() {
     const branchFilter = document.getElementById('branchFilter');
     const locationFilter = document.getElementById('locationFilter');
@@ -813,7 +769,7 @@ function filterStudents() {
     }
 }
 
-// عرض جدول الطلاب (محدث مع إصلاح أزرار الإجراءات)
+// عرض جدول الطلاب
 function displayStudentsTable(branchFilter = '', locationFilter = '', foujFilter = '') {
     const tbody = document.getElementById('studentsTableBody');
     const titleElement = document.getElementById('currentFoujTitle');
@@ -829,7 +785,6 @@ function displayStudentsTable(branchFilter = '', locationFilter = '', foujFilter
         return branchMatch && locationMatch && foujMatch;
     });
     
-    // تحديث عنوان الجدول
     if (titleElement) {
         if (foujFilter) {
             const foujStats = getFoujStats();
@@ -873,20 +828,18 @@ function displayStudentsTable(branchFilter = '', locationFilter = '', foujFilter
     });
 }
 
-// عرض إحصائيات الأفواج (محدث مع المربعات القابلة للضغط وإظهار الأفواج الفارغة)
+// عرض إحصائيات الأفواج
 function displayFoujStats() {
     const statsContainer = document.getElementById('foujStatsContainer');
     const foujFilter = document.getElementById('foujFilter');
     
     if (!statsContainer || !foujFilter) return;
     
-    // تحديث معلومات الأفواج
     updateStudentsFoujInfo();
     
     const foujStats = getFoujStats();
     const totalFoujs = Object.keys(foujStats).length;
     
-    // مسح المحتوى السابق
     statsContainer.innerHTML = '';
     foujFilter.innerHTML = '<option value="">جميع الأفواج</option>';
     
@@ -902,7 +855,7 @@ function displayFoujStats() {
     `;
     statsContainer.appendChild(totalCard);
     
-    // ترتيب الأفواج حسب الترتيب المطلوب
+    // ترتيب الأفواج
     const foujOrder = [
         'رأس الوادي_يوم الجمعة صباحا الساعة 9:00',
         'برج بوعريريج_يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)',
@@ -910,7 +863,6 @@ function displayFoujStats() {
         'برج بوعريريج_يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)'
     ];
     
-    // عرض إحصائيات كل فوج (بما في ذلك الفارغة)
     foujOrder.forEach(foujKey => {
         const fouj = foujStats[foujKey];
         if (fouj) {
@@ -934,14 +886,12 @@ function displayFoujStats() {
                 </div>
             `;
             
-            // تحديد المربع النشط
             if (currentSelectedFouj === foujKey) {
                 card.classList.add('active');
             }
             
             statsContainer.appendChild(card);
             
-            // إضافة الفوج للفلتر
             const option = document.createElement('option');
             option.value = foujKey;
             option.textContent = `${fouj.name} (${fouj.count}/${MAX_STUDENTS_PER_FOUJ})`;
@@ -953,17 +903,175 @@ function displayFoujStats() {
     });
 }
 
-// الوصول للوحة التحكم (للأستاذ) - محسن مع نافذة جديدة
+// ===== دوال التصدير =====
+
+function exportAllToExcel() {
+    if (registeredStudents.length === 0) {
+        alert('لا توجد بيانات للتصدير');
+        return;
+    }
+    
+    const foujStats = getFoujStats();
+    const activeFoujs = Object.keys(foujStats).filter(key => foujStats[key].count > 0);
+    
+    if (confirm(`سيتم إنشاء ${activeFoujs.length} ملف Excel منفصل لكل فوج. هل تريد المتابعة؟`)) {
+        activeFoujs.forEach(foujKey => {
+            const fouj = foujStats[foujKey];
+            exportFoujToExcel(fouj.name, fouj.students);
+        });
+        
+        alert(`تم تصدير ملفات Excel بنجاح!`);
+    }
+}
+
+function exportFoujToExcel(foujName, students) {
+    let htmlTable = `
+        <table border="1" style="border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #000000; color: white;">
+                    <th style="padding: 10px;">الرقم</th>
+                    <th style="padding: 10px;">الاسم واللقب</th>
+                    <th style="padding: 10px;">نوع الطالب</th>
+                    <th style="padding: 10px;">الثانوية</th>
+                    <th style="padding: 10px;">تاريخ الميلاد</th>
+                    <th style="padding: 10px;">الشعبة</th>
+                    <th style="padding: 10px;">المعدل</th>
+                    <th style="padding: 10px;">مستوى الرياضيات</th>
+                    <th style="padding: 10px;">الهاتف الشخصي</th>
+                    <th style="padding: 10px;">هاتف الولي</th>
+                    <th style="padding: 10px;">تاريخ التسجيل</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    students.forEach((student, index) => {
+        htmlTable += `
+            <tr ${index % 2 === 0 ? 'style="background-color: #f8f9fa;"' : ''}>
+                <td style="padding: 8px; text-align: center;">${index + 1}</td>
+                <td style="padding: 8px;">${student.fullName}</td>
+                <td style="padding: 8px; text-align: center;">${student.studentType}</td>
+                <td style="padding: 8px;">${student.school}</td>
+                <td style="padding: 8px; text-align: center;">${student.birthDate}</td>
+                <td style="padding: 8px; text-align: center;">${student.branch}</td>
+                <td style="padding: 8px; text-align: center;">${student.averageGrade}</td>
+                <td style="padding: 8px; text-align: center;">${student.mathLevel}</td>
+                <td style="padding: 8px; text-align: center;">${student.personalPhone}</td>
+                <td style="padding: 8px; text-align: center;">${student.guardianPhone}</td>
+                <td style="padding: 8px; text-align: center;">${student.registrationDate}</td>
+            </tr>
+        `;
+    });
+    
+    htmlTable += '</tbody></table>';
+    
+    const excelContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+              xmlns:x="urn:schemas-microsoft-com:office:excel" 
+              xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+            <meta charset="utf-8">
+            <meta name="ProgId" content="Excel.Sheet">
+            <meta name="Generator" content="Microsoft Excel 15">
+            <style>
+                body { font-family: Arial, sans-serif; direction: rtl; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #000; padding: 8px; text-align: right; }
+                th { background-color: #000000; color: white; font-weight: bold; }
+                tr:nth-child(even) { background-color: #f8f9fa; }
+            </style>
+        </head>
+        <body>
+            <h2 style="text-align: center; color: #000000; margin-bottom: 20px;">
+                ${foujName} - دروس الدعم في الرياضيات - بكالوريا 2026
+            </h2>
+            <p style="text-align: center; color: #333333; margin-bottom: 30px;">
+                الأستاذ بلعياضي أكرم | عدد الطلاب: ${students.length} | تاريخ التصدير: ${new Date().toLocaleDateString('ar-DZ')}
+            </p>
+            ${htmlTable}
+        </body>
+        </html>
+    `;
+    
+    const blob = new Blob(['\ufeff', excelContent], {
+        type: 'application/vnd.ms-excel;charset=utf-8'
+    });
+    
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `${foujName.replace(/\s+/g, '_')}_${new Date().toLocaleDateString('ar-DZ').replace(/\//g, '-')}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function exportCurrentFoujToExcel() {
+    const foujFilter = document.getElementById('foujFilter');
+    const selectedFouj = foujFilter ? foujFilter.value : '';
+    
+    if (selectedFouj) {
+        const foujStats = getFoujStats();
+        const fouj = foujStats[selectedFouj];
+        if (fouj && fouj.count > 0) {
+            exportFoujToExcel(fouj.name, fouj.students);
+            alert(`تم تصدير ${fouj.name} بنجاح!`);
+        } else {
+            alert('هذا الفوج فارغ، لا توجد بيانات للتصدير');
+        }
+    } else {
+        if (registeredStudents.length > 0) {
+            exportFoujToExcel('جميع_الطلاب', registeredStudents);
+            alert('تم تصدير جميع الطلاب بنجاح!');
+        } else {
+            alert('لا توجد بيانات للتصدير');
+        }
+    }
+}
+
+function exportToJSON() {
+    if (registeredStudents.length === 0) {
+        alert('لا توجد بيانات للتصدير');
+        return;
+    }
+    
+    const foujStats = getFoujStats();
+    const jsonData = {
+        exportDate: new Date().toISOString(),
+        totalStudents: registeredStudents.length,
+        totalFoujs: Object.keys(foujStats).length,
+        foujStats: foujStats,
+        students: registeredStudents,
+        firebaseStatus: isFirebaseReady ? 'connected' : 'offline'
+    };
+    
+    const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
+        type: 'application/json;charset=utf-8'
+    });
+    
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `backup_students_${new Date().toLocaleDateString('ar-DZ').replace(/\//g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    alert('تم إنشاء النسخة الاحتياطية بنجاح!');
+}
+
+// ===== دوال لوحة التحكم =====
+
 function accessAdminPanel() {
     showPasswordModal();
 }
 
-// عرض نافذة كلمة السر المحسنة
 function showPasswordModal() {
     const modal = document.getElementById('passwordModal');
     modal.style.display = 'block';
     
-    // التركيز على حقل كلمة السر
     setTimeout(() => {
         const passwordInput = document.getElementById('adminPassword');
         if (passwordInput) {
@@ -971,7 +1079,6 @@ function showPasswordModal() {
         }
     }, 100);
     
-    // إضافة مستمع للضغط على Enter
     const passwordInput = document.getElementById('adminPassword');
     if (passwordInput) {
         passwordInput.addEventListener('keypress', function(e) {
@@ -982,14 +1089,19 @@ function showPasswordModal() {
     }
 }
 
-// تأكيد كلمة السر
-function confirmPassword() {
+async function confirmPassword() {
     const passwordInput = document.getElementById('adminPassword');
     const password = passwordInput.value;
     
     if (password === 'admin123') {
         cancelPassword();
         showPage('adminPanel');
+        
+        // تحميل البيانات من Firebase إذا لم تكن محملة
+        if (registeredStudents.length === 0) {
+            await loadStudentsFromFirebase();
+        }
+        
         displayFoujStats();
         displayStudentsTable();
     } else if (password.trim() === '') {
@@ -1002,7 +1114,6 @@ function confirmPassword() {
     }
 }
 
-// إلغاء كلمة السر
 function cancelPassword() {
     const modal = document.getElementById('passwordModal');
     const passwordInput = document.getElementById('adminPassword');
@@ -1011,7 +1122,6 @@ function cancelPassword() {
     passwordInput.value = '';
 }
 
-// تبديل رؤية كلمة السر
 function togglePasswordVisibility() {
     const passwordInput = document.getElementById('adminPassword');
     const toggleIcon = document.getElementById('passwordToggleIcon');
@@ -1025,9 +1135,8 @@ function togglePasswordVisibility() {
     }
 }
 
-// إنشاء زر لوحة التحكم المحسن
+// إنشاء زر لوحة التحكم
 function createAdminButton() {
-    // التأكد من عدم وجود الزر مسبقاً
     const existingButton = document.querySelector('.admin-control-button');
     if (existingButton) {
         existingButton.remove();
@@ -1038,7 +1147,6 @@ function createAdminButton() {
     adminBtn.innerHTML = '<i class="fas fa-cog"></i>';
     adminBtn.title = 'لوحة التحكم الإدارية';
     
-    // تأثيرات التفاعل
     adminBtn.addEventListener('mouseover', function() {
         this.style.color = '#ffffff';
         this.style.backgroundColor = '#000000';
@@ -1055,10 +1163,9 @@ function createAdminButton() {
     
     adminBtn.addEventListener('click', accessAdminPanel);
     
-    // إضافة الزر للصفحة
     document.body.appendChild(adminBtn);
     
-    // إضافة حركة دوران مستمرة خفيفة
+    // حركة دوران خفيفة
     setInterval(function() {
         if (!adminBtn.matches(':hover')) {
             adminBtn.style.transform = 'rotate(5deg)';
@@ -1078,7 +1185,7 @@ function createAdminButton() {
     return adminBtn;
 }
 
-// إضافة المزيد من الرموز الرياضياتية ديناميكياً
+// إضافة رموز رياضياتية إضافية
 function addMoreMathSymbols() {
     const mathContainers = document.querySelectorAll('.math-symbols');
     const additionalSymbols = ['∮', '∯', '∰', '∱', '∲', '∳', '⊕', '⊗', '⊙', '⊘'];
@@ -1097,7 +1204,125 @@ function addMoreMathSymbols() {
     });
 }
 
-// إضافة زر الوصول للوحة التحكم باختصار لوحة المفاتيح
+// ===== معالجة الأحداث الرئيسية =====
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 تحميل التطبيق...');
+    
+    // تهيئة Firebase
+    initializeFirebase();
+    
+    // تحميل البيانات عند بدء التطبيق
+    loadStudentsFromFirebase();
+    
+    // معالجة إرسال النموذج
+    const form = document.getElementById('registrationForm');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = this.querySelector('.submit-btn');
+            if (submitBtn) {
+                submitBtn.classList.add('loading');
+                submitBtn.disabled = true;
+            }
+            
+            try {
+                const formData = new FormData(this);
+                const location = formData.get('location');
+                const schedule = formData.get('schedule');
+                
+                // فحص سعة الفوج
+                const currentCount = checkFoujCapacity(location, schedule);
+                if (currentCount >= MAX_STUDENTS_PER_FOUJ) {
+                    showAlert('عذراً، هذا الفوج مكتمل. يرجى اختيار فوج آخر.', 'danger');
+                    return;
+                }
+                
+                // إنشاء بيانات الطالب
+                const studentData = {
+                    id: Date.now() + Math.random(),
+                    registrationDate: new Date().toLocaleDateString('ar-DZ'),
+                    foujKey: getFoujKey(location, schedule),
+                    foujName: getFoujName(location, schedule),
+                    studentType: formData.get('studentType'),
+                    school: formData.get('school') || 'غير محدد',
+                    fullName: formData.get('fullName'),
+                    birthDate: formData.get('birthDate'),
+                    branch: formData.get('branch'),
+                    averageGrade: formData.get('averageGrade'),
+                    mathLevel: formData.get('mathLevel'),
+                    personalPhone: formData.get('personalPhone'),
+                    guardianPhone: formData.get('guardianPhone'),
+                    location: location,
+                    schedule: schedule
+                };
+                
+                // محاولة حفظ في Firebase
+                const savedToFirebase = await saveStudentToFirebase(studentData);
+                
+                // إضافة للبيانات المحلية
+                registeredStudents.push(studentData);
+                localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
+                
+                // تحديث نص التأكيد
+                const confirmationText = document.getElementById('foujConfirmationText');
+                if (confirmationText) {
+                    confirmationText.innerHTML = `تم تسجيلك بنجاح في <strong>${studentData.foujName}</strong>.<br>معلوماتك وصلتنا بنجاح، حضور الحصة الأولى ضروري لتأكيد التسجيل.`;
+                }
+                
+                // إظهار رسالة حالة الحفظ
+                const saveStatusMessage = document.getElementById('saveStatusMessage');
+                if (saveStatusMessage) {
+                    saveStatusMessage.style.display = 'flex';
+                    if (savedToFirebase) {
+                        saveStatusMessage.className = '';
+                        saveStatusMessage.innerHTML = `
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span>تم حفظ بياناتك في قاعدة البيانات المشتركة بنجاح! ✅</span>
+                        `;
+                    } else {
+                        saveStatusMessage.className = 'warning';
+                        saveStatusMessage.innerHTML = `
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>تم حفظ بياناتك محلياً - سيتم رفعها عند توفر الإنترنت</span>
+                        `;
+                    }
+                }
+                
+                // عرض صفحة التأكيد
+                showPage('confirmationPage');
+                
+                // إعادة تعيين النموذج
+                this.reset();
+                document.getElementById('schoolField').style.display = 'none';
+                document.getElementById('scheduleOptions').style.display = 'none';
+                document.getElementById('mapContainer').style.display = 'none';
+                const notice = document.getElementById('foujFullNotice');
+                if (notice) notice.style.display = 'none';
+                
+            } catch (error) {
+                console.error('خطأ في التسجيل:', error);
+                showAlert('حدث خطأ في التسجيل. يرجى المحاولة مرة أخرى.', 'danger');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.classList.remove('loading');
+                    submitBtn.disabled = false;
+                }
+            }
+        });
+    }
+    
+    // إنشاء زر لوحة التحكم
+    setTimeout(createAdminButton, 500);
+    
+    // إضافة الرموز الرياضياتية
+    setTimeout(addMoreMathSymbols, 1000);
+    
+    console.log('✅ التطبيق جاهز للاستخدام');
+});
+
+// مستمع للاختصارات
 document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && e.shiftKey && e.key === 'A') {
         e.preventDefault();
@@ -1108,7 +1333,6 @@ document.addEventListener('keydown', function(e) {
 // تحديث الراديو بوتونز بصرياً
 document.addEventListener('change', function(e) {
     if (e.target.type === 'radio') {
-        // إزالة التحديد من جميع العناصر في نفس المجموعة
         document.querySelectorAll(`input[name="${e.target.name}"]`).forEach(radio => {
             const label = radio.closest('.radio-label');
             if (label) {
@@ -1116,7 +1340,6 @@ document.addEventListener('change', function(e) {
             }
         });
         
-        // إضافة التحديد للعنصر المختار
         const selectedLabel = e.target.closest('.radio-label');
         if (selectedLabel) {
             selectedLabel.classList.add('selected');
@@ -1124,15 +1347,13 @@ document.addEventListener('change', function(e) {
     }
 });
 
-// إضافة تأثيرات الحركة عند التحميل
+// تأثيرات الحركة عند التحميل
 document.addEventListener('DOMContentLoaded', function() {
-    // إضافة تأثير fade-in للصفحة الرئيسية
     const heroSection = document.querySelector('.hero-section');
     if (heroSection) {
         heroSection.classList.add('fade-in');
     }
     
-    // إضافة تأثيرات للعناصر التفاعلية
     document.querySelectorAll('.register-btn, .submit-btn, .back-btn').forEach(btn => {
         btn.addEventListener('mouseenter', function() {
             this.style.transform = 'translateY(-3px) scale(1.02)';
@@ -1164,3 +1385,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 100);
 });
+
+// مراقبة حالة الإنترنت
+window.addEventListener('online', function() {
+    updateConnectionStatus('connected');
+    console.log('🌐 الإنترنت متصل - محاولة إعادة تهيئة Firebase');
+    
+    setTimeout(() => {
+        initializeFirebase();
+        loadStudentsFromFirebase();
+    }, 1000);
+});
+
+window.addEventListener('offline', function() {
+    updateConnectionStatus('offline');
+    console.log('📱 وضع عدم الاتصال - استخدام البيانات المحلية');
+});
+
+console.log('🔥 Firebase Integration Script تم تحميله بنجاح');

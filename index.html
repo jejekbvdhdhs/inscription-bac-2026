@@ -13,7 +13,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <script>
-    // إعدادات Firebase - استبدل هذه القيم بإعداداتك من Firebase Console
+    // إعدادات Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyBIEGme5wvEs8B4jPF_YFlu8CEWsInQ9-E",
         authDomain: "bac-2026.firebaseapp.com",
@@ -23,7 +23,6 @@
         appId: "1:463802056811:web:61608120e74e76878c712e"
     };
 
-    // تهيئة Firebase
     try {
         firebase.initializeApp(firebaseConfig);
         window.db = firebase.firestore();
@@ -89,7 +88,6 @@
                     </div>
                 </div>
                 
-                <!-- لافتة التسعيرة -->
                 <div class="pricing-banner">
                     <div class="pricing-content">
                         <div class="price-main">
@@ -121,7 +119,6 @@
             <div class="modal-content">
                 <h3>موافقة على مشاركة المعلومات الشخصية</h3>
                 <p>هل توافق على مشاركة معلوماتك الشخصية خلال التسجيل؟</p>
-                <!-- لافتة التسعيرة الإضافية في النافذة -->
                 <div class="pricing-reminder">
                     <i class="fas fa-info-circle"></i>
                     <p><strong>تذكير:</strong> التسعيرة 2000 دج - حصص 2 ساعة - عدد الحصص في الشهر 4</p>
@@ -158,30 +155,28 @@
             <div class="form-container">
                 <h2>نموذج التسجيل</h2>
                 
-                <!-- إشعار الفوج المكتمل -->
                 <div id="foujFullNotice" class="notice" style="display: none;">
                     <i class="fas fa-exclamation-triangle"></i>
                     <span>تنبيه: الفوج الحالي مكتمل (50 طالب). سيتم تسجيلك في الفوج التالي.</span>
                 </div>
                 
-                <!-- إشعار حالة قاعدة البيانات -->
                 <div id="dbStatusNotice" class="notice" style="display: none; background-color: #fff3cd; color: #856404;">
                     <i class="fas fa-wifi"></i>
                     <span>يتم الحفظ محلياً - تحقق من الاتصال بالإنترنت</span>
                 </div>
                 
                 <form id="registrationForm">
-                    <!-- نوع الطالب -->
+                    <!-- نوع الطالب (مطلوب) -->
                     <div class="form-group">
                         <label>نوع الطالب:</label>
                         <div class="radio-group">
                             <label class="radio-label">
-                                <input type="radio" name="studentType" value="نظامي" onchange="toggleSchoolField(this)" />
+                                <input required type="radio" name="studentType" value="نظامي" onchange="toggleSchoolField(this)" />
                                 <span class="radio-icon">🎓</span>
                                 طالب نظامي
                             </label>
                             <label class="radio-label">
-                                <input type="radio" name="studentType" value="حر" onchange="toggleSchoolField(this)" />
+                                <input required type="radio" name="studentType" value="حر" onchange="toggleSchoolField(this)" />
                                 <span class="radio-icon">📚</span>
                                 طالب حر
                             </label>
@@ -324,27 +319,29 @@
                         <input type="tel" id="guardianPhone" name="guardianPhone" required />
                     </div>
 
-                    <!-- مكان الدروس -->
+                    <!-- مكان الدروس (مطلوب) -->
                     <div class="form-group">
                         <label>مكان الدروس الخصوصية:</label>
                         <div class="radio-group">
                             <label class="radio-label">
-                                <input type="radio" name="location" value="برج بوعريريج" onchange="updateLocationOptions(this)" />
+                                <input required type="radio" name="location" value="برج بوعريريج" onchange="updateLocationOptions(this)" />
                                 <span class="radio-icon">🏢</span>
                                 برج بوعريريج
                             </label>
                             <label class="radio-label">
-                                <input type="radio" name="location" value="رأس الوادي" onchange="updateLocationOptions(this)" />
+                                <input required type="radio" name="location" value="رأس الوادي" onchange="updateLocationOptions(this)" />
                                 <span class="radio-icon">🏛️</span>
                                 رأس الوادي
                             </label>
                         </div>
                     </div>
 
-                    <!-- خيارات التوقيت -->
+                    <!-- خيارات التوقيت (إجباري) -->
                     <div class="form-group" id="scheduleOptions" style="display: none;">
                         <label>اختر التوقيت:</label>
-                        <div id="scheduleChoices" class="radio-group"></div>
+                        <div id="scheduleChoices" class="radio-group">
+                            <!-- سيتم توليد خيارات التوقيت ديناميكياً مع خاصية required -->
+                        </div>
                     </div>
 
                     <!-- الخريطة -->
@@ -362,6 +359,32 @@
         </div>
     </div>
 
+    <!-- لافتة تأكيد الفوج -->
+    <div id="foujConfirmModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h3>تأكيد الفوج</h3>
+        <p id="foujConfirmText">تم تسجيلك في: <span id="selectedFoujName"></span></p>
+        <div class="consent-buttons" style="justify-content:center; gap:20px;">
+          <button class="btn-yes" onclick="confirmFouj()">موافق</button>
+          <button class="btn-no" onclick="showFoujChangeModal()">تغيير الفوج</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- لافتة اختيار فوج جديد -->
+    <div id="foujChangeModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h3>تغيير الفوج</h3>
+        <form id="changeFoujForm">
+          <label>اختر فوجاً آخر:</label>
+          <div id="foujChoicesList" class="radio-group"></div>
+          <div class="consent-buttons" style="justify-content:center; margin-top:15px;">
+            <button type="submit" class="btn-yes">تأكيد الفوج الجديد</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
     <!-- صفحة تأكيد التسجيل -->
     <div id="confirmationPage" class="page" style="display:none;">
         <div class="container">
@@ -372,7 +395,6 @@
                 <h2>شكراً لتسجيلك</h2>
                 <p id="foujConfirmationText">معلوماتك وصلتنا بنجاح، حضور الحصة الأولى ضروري لتأكيد التسجيل.</p>
                 
-                <!-- إشعار حفظ البيانات -->
                 <div id="saveStatusMessage" style="margin: 20px 0; padding: 15px; border-radius: 10px; display: none;">
                     <i class="fas fa-cloud-upload-alt"></i>
                     <span>تم حفظ بياناتك في قاعدة البيانات المشتركة بنجاح! ✅</span>
@@ -494,33 +516,6 @@
             </div>
         </div>
     </div>
-
-    <style>
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    #connectionStatus {
-        background: #27ae60;
-        color: white;
-        transition: all 0.3s ease;
-    }
-    #connectionStatus.offline {
-        background: #e74c3c;
-    }
-    #connectionStatus.connecting {
-        background: #f39c12;
-    }
-    #saveStatusMessage {
-        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
-        color: white;
-        text-align: center;
-        font-weight: 600;
-    }
-    #saveStatusMessage.warning {
-        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-    }
-    </style>
 
     <script src="script.js"></script>
 </body>

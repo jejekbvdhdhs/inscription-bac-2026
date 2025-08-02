@@ -63,6 +63,12 @@ function initializeFirebase() {
         updateConnectionStatus('connected');
         console.log('✅ Firebase جاهز للاستخدام');
         
+        // تحميل البيانات فوراً
+        loadStudentsFromFirebase().then(() => {
+            console.log('تم تحميل', registeredStudents.length, 'طلاب');
+            updateAdminDisplay();
+        });
+        
         // إخفاء إشعار قاعدة البيانات إذا كان ظاهراً
         const dbNotice = document.getElementById('dbStatusNotice');
         if (dbNotice) {
@@ -75,6 +81,10 @@ function initializeFirebase() {
         updateConnectionStatus('offline');
         console.warn('⚠️ Firebase غير متاح - سيتم استخدام التخزين المحلي');
         
+        // تحميل البيانات المحلية
+        registeredStudents = JSON.parse(localStorage.getItem('registeredStudents')) || [];
+        updateAdminDisplay();
+        
         // إظهار إشعار قاعدة البيانات
         const dbNotice = document.getElementById('dbStatusNotice');
         if (dbNotice) {
@@ -82,6 +92,15 @@ function initializeFirebase() {
         }
         
         return false;
+    }
+}
+
+// دالة مساعدة لتحديث عرض لوحة التحكم
+function updateAdminDisplay() {
+    if (document.getElementById('adminPanel') && document.getElementById('adminPanel').classList.contains('active')) {
+        displayFoujStats();
+        displayStudentsTable();
+        updateFoujFilters();
     }
 }
 
@@ -177,6 +196,26 @@ async function loadStudentsFromFirebase() {
     }
 }
 
+// حذف طالب من Firebase
+async function deleteStudentFromFirebase(student) {
+    if (!isFirebaseReady || !student.firebaseId) {
+        console.log('📱 Firebase غير متاح أو لا يوجد ID - حذف محلي فقط');
+        return false;
+    }
+    
+    try {
+        updateConnectionStatus('connecting');
+        await db.collection('students').doc(student.firebaseId).delete();
+        updateConnectionStatus('connected');
+        console.log('✅ تم حذف الطالب من Firebase');
+        return true;
+    } catch (error) {
+        console.error('❌ خطأ في حذف البيانات:', error);
+        updateConnectionStatus('offline');
+        return false;
+    }
+}
+
 // إظهار/إخفاء مؤشر التحميل
 function showLoadingIndicator(show) {
     const indicator = document.getElementById('loadingIndicator');
@@ -196,7 +235,6 @@ function getFoujKey(location, schedule) {
 }
 
 function checkFoujCapacity(location, schedule) {
-    const foujKey = getFoujKey(location, schedule);
     const foujStudents = registeredStudents.filter(s => 
         s.location === location && s.schedule === schedule
     );
@@ -269,7 +307,7 @@ function goToHome() {
 }
 
 function showPage(pageId) {
-    console.log('تغيير الصفحة إلى:', pageId); // للتشخيص
+    console.log('تغيير الصفحة إلى:', pageId);
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
         page.style.display = 'none';
@@ -280,6 +318,11 @@ function showPage(pageId) {
         targetPage.classList.add('active');
         targetPage.style.display = 'block';
         console.log('تم عرض الصفحة:', pageId);
+        
+        // إذا كانت لوحة التحكم، تحديث البيانات
+        if (pageId === 'adminPanel') {
+            updateAdminDisplay();
+        }
     } else {
         console.error('الصفحة غير موجودة:', pageId);
     }
@@ -470,10 +513,7 @@ async function finishStudentRegistration(studentData) {
         if (mapContainer) mapContainer.style.display = 'none';
         
         // تحديث الإحصائيات إذا كانت لوحة التحكم مفتوحة
-        if (document.getElementById('adminPanel').classList.contains('active')) {
-            displayFoujStats();
-            displayStudentsTable();
-        }
+        updateAdminDisplay();
     } else {
         showAlert('حدث خطأ أثناء التسجيل. حاول مرة أخرى.', 'danger');
     }
@@ -555,39 +595,413 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// دوال الإدارة الأساسية (يمكنك توسيعها)
+// ===== دوال لوحة التحكم المُصححة =====
+
+// دالة عرض إحصائيات الأفواج
 function displayFoujStats() {
-    // مكان لعرض إحصائيات الأفواج
-    console.log('عرض إحصائيات الأفواج');
+    const container = document.getElementById('foujStatsContainer');
+    if (!container) return;
+    
+    console.log('عرض إحصائيات الأفواج - عدد الطلاب:', registeredStudents.length);
+    
+    // حساب إحصائيات كل فوج
+    const foujStats = {};
+    FOUJ_OPTIONS.forEach(fouj => {
+        const students = registeredStudents.filter(s => 
+            s.location === fouj.location && s.schedule === fouj.schedule
+        );
+        foujStats[fouj.key] = {
+            name: fouj.name,
+            count: students.length,
+            capacity: MAX_STUDENTS_PER_FOUJ,
+            students: students
+        };
+    });
+    
+    // عرض الإحصائيات
+    container.innerHTML = '';
+    Object.values(foujStats).forEach(fouj => {
+        const percentage = (fouj.count / fouj.capacity) * 100;
+        const isFull = fouj.count >= fouj.capacity;
+        const isEmpty = fouj.count === 0;
+        
+        let cardClass = 'stat-card clickable';
+        if (isEmpty) cardClass += ' empty';
+        if (currentSelectedFouj === fouj.name) cardClass += ' active';
+        
+        const cardHtml = `
+            <div class="${cardClass}" onclick="filterByFoujName('${fouj.name}')">
+                <h4>${fouj.name}</h4>
+                <div class="stat-number">${fouj.count}/${fouj.capacity}</div>
+                <div class="capacity-bar">
+                    <div class="capacity-fill ${isFull ? 'capacity-full' : ''}" style="width: ${percentage}%"></div>
+                </div>
+            </div>
+        `;
+        container.innerHTML += cardHtml;
+    });
 }
 
-function displayStudentsTable() {
-    // مكان لعرض جدول الطلاب
-    console.log('عرض جدول الطلاب');
+// دالة عرض جدول الطلاب
+function displayStudentsTable(filteredStudents = null) {
+    const tableBody = document.getElementById('studentsTableBody');
+    if (!tableBody) return;
+    
+    const studentsToShow = filteredStudents || registeredStudents;
+    console.log('عرض جدول الطلاب - عدد الطلاب:', studentsToShow.length);
+    
+    if (studentsToShow.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="14" style="text-align: center; padding: 40px; color: #666;">
+                    <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
+                    لا توجد تسجيلات ${currentSelectedFouj ? `في ${currentSelectedFouj}` : 'حتى الآن'}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tableBody.innerHTML = '';
+    studentsToShow.forEach((student, index) => {
+        const foujName = getFoujName(student.location, student.schedule);
+        const registrationDate = student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString('ar-DZ');
+        
+        const row = `
+            <tr>
+                <td>${index + 1}</td>
+                <td><span class="fouj-badge">${foujName}</span></td>
+                <td><strong>${student.fullName}</strong></td>
+                <td>${student.studentType}</td>
+                <td>${student.school || 'غير محدد'}</td>
+                <td>${student.branch}</td>
+                <td>${student.averageGrade}</td>
+                <td>${student.mathLevel}</td>
+                <td>${student.personalPhone}</td>
+                <td>${student.guardianPhone}</td>
+                <td>${student.location}</td>
+                <td>${student.schedule.length > 30 ? student.schedule.substring(0, 30) + '...' : student.schedule}</td>
+                <td>${registrationDate}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-edit" onclick="editStudent('${student.id || student.firebaseId}')">
+                            <i class="fas fa-edit"></i> تعديل
+                        </button>
+                        <button class="btn-delete" onclick="confirmDeleteStudent('${student.id || student.firebaseId}', '${student.fullName}')">
+                            <i class="fas fa-trash"></i> حذف
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+        tableBody.innerHTML += row;
+    });
 }
 
-function exportAllToExcel() {
-    console.log('تصدير Excel');
+// دالة فلترة بالفوج
+function filterByFoujName(foujName) {
+    console.log('فلترة بالفوج:', foujName);
+    
+    // إزالة التفعيل من جميع البطاقات
+    document.querySelectorAll('.stat-card').forEach(card => {
+        card.classList.remove('active');
+    });
+    
+    // تفعيل البطاقة المختارة
+    const selectedCard = document.querySelector(`[onclick="filterByFoujName('${foujName}')"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('active');
+    }
+    
+    if (currentSelectedFouj === foujName) {
+        // إلغاء الفلترة إذا تم النقر على نفس الفوج
+        currentSelectedFouj = '';
+        document.getElementById('currentFoujTitle').textContent = 'جميع الطلاب المسجلين';
+        displayStudentsTable();
+        if (selectedCard) selectedCard.classList.remove('active');
+    } else {
+        // تطبيق الفلترة
+        const filtered = registeredStudents.filter(s => {
+            const studentFoujName = getFoujName(s.location, s.schedule);
+            return studentFoujName === foujName;
+        });
+        
+        currentSelectedFouj = foujName;
+        document.getElementById('currentFoujTitle').textContent = `طلاب ${foujName} (${filtered.length})`;
+        displayStudentsTable(filtered);
+    }
 }
 
-function exportToJSON() {
-    console.log('تصدير JSON');
+// تحديث فلاتر الأفواج
+function updateFoujFilters() {
+    const foujFilter = document.getElementById('foujFilter');
+    if (!foujFilter) return;
+    
+    // حفظ القيمة المختارة
+    const selectedValue = foujFilter.value;
+    
+    // مسح الخيارات الحالية
+    foujFilter.innerHTML = '<option value="">جميع الأفواج</option>';
+    
+    // إضافة الأفواج التي بها طلاب
+    const activeFoujs = new Set();
+    registeredStudents.forEach(student => {
+        const foujName = getFoujName(student.location, student.schedule);
+        activeFoujs.add(foujName);
+    });
+    
+    Array.from(activeFoujs).sort().forEach(foujName => {
+        const option = document.createElement('option');
+        option.value = foujName;
+        option.textContent = foujName;
+        foujFilter.appendChild(option);
+    });
+    
+    // استعادة القيمة المختارة إن وجدت
+    if (selectedValue && Array.from(activeFoujs).includes(selectedValue)) {
+        foujFilter.value = selectedValue;
+    }
 }
 
-function exportCurrentFoujToExcel() {
-    console.log('تصدير الفوج الحالي');
-}
-
-function refreshData() {
-    loadStudentsFromFirebase();
-}
-
+// فلترة بواسطة قائمة الأفواج
 function filterByFouj() {
-    console.log('فلترة بالفوج');
+    const foujFilter = document.getElementById('foujFilter');
+    const selectedFouj = foujFilter ? foujFilter.value : '';
+    
+    if (selectedFouj) {
+        filterByFoujName(selectedFouj);
+    } else {
+        currentSelectedFouj = '';
+        document.getElementById('currentFoujTitle').textContent = 'جميع الطلاب المسجلين';
+        displayStudentsTable();
+        // إزالة التفعيل من جميع البطاقات
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.classList.remove('active');
+        });
+    }
 }
 
+// فلترة متقدمة للطلاب
 function filterStudents() {
-    console.log('فلترة الطلاب');
+    const branchFilter = document.getElementById('branchFilter');
+    const locationFilter = document.getElementById('locationFilter');
+    
+    let filtered = registeredStudents;
+    
+    // فلترة بالشعبة
+    if (branchFilter && branchFilter.value) {
+        filtered = filtered.filter(s => s.branch === branchFilter.value);
+    }
+    
+    // فلترة بالموقع
+    if (locationFilter && locationFilter.value) {
+        filtered = filtered.filter(s => s.location === locationFilter.value);
+    }
+    
+    // فلترة بالفوج إذا كان محدد
+    if (currentSelectedFouj) {
+        filtered = filtered.filter(s => {
+            const foujName = getFoujName(s.location, s.schedule);
+            return foujName === currentSelectedFouj;
+        });
+    }
+    
+    displayStudentsTable(filtered);
+    
+    // تحديث عنوان الجدول
+    let title = 'الطلاب المسجلين';
+    const filters = [];
+    if (currentSelectedFouj) filters.push(currentSelectedFouj);
+    if (branchFilter && branchFilter.value) filters.push(branchFilter.value);
+    if (locationFilter && locationFilter.value) filters.push(locationFilter.value);
+    
+    if (filters.length > 0) {
+        title = `${title} - ${filters.join(' - ')} (${filtered.length})`;
+    } else {
+        title = `${title} (${filtered.length})`;
+    }
+    
+    document.getElementById('currentFoujTitle').textContent = title;
+}
+
+// حذف طالب مع تأكيد
+function confirmDeleteStudent(studentId, studentName) {
+    if (confirm(`هل أنت متأكد من حذف الطالب: ${studentName}؟`)) {
+        deleteStudent(studentId);
+    }
+}
+
+// حذف طالب
+async function deleteStudent(studentId) {
+    const studentIndex = registeredStudents.findIndex(s => 
+        s.id === studentId || s.firebaseId === studentId
+    );
+    
+    if (studentIndex === -1) {
+        showAlert('الطالب غير موجود', 'danger');
+        return;
+    }
+    
+    const student = registeredStudents[studentIndex];
+    
+    // محاولة حذف من Firebase
+    const firebaseDeleted = await deleteStudentFromFirebase(student);
+    
+    // حذف من المصفوفة المحلية
+    registeredStudents.splice(studentIndex, 1);
+    localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
+    
+    // تحديث العرض
+    updateAdminDisplay();
+    
+    showAlert('تم حذف الطالب بنجاح', 'success');
+}
+
+// تعديل طالب (مبدئي)
+function editStudent(studentId) {
+    const student = registeredStudents.find(s => 
+        s.id === studentId || s.firebaseId === studentId
+    );
+    
+    if (!student) {
+        showAlert('الطالب غير موجود', 'danger');
+        return;
+    }
+    
+    // يمكن إضافة نافذة تعديل هنا لاحقاً
+    showAlert('ميزة التعديل ستتوفر قريباً', 'success');
+}
+
+// تصدير البيانات إلى Excel
+function exportAllToExcel() {
+    if (registeredStudents.length === 0) {
+        showAlert('لا توجد بيانات للتصدير', 'danger');
+        return;
+    }
+    
+    // إنشاء محتوى CSV
+    const headers = ['الرقم', 'الفوج', 'الاسم واللقب', 'نوع الطالب', 'الثانوية', 'الشعبة', 'المعدل', 'مستوى الرياضيات', 'الهاتف الشخصي', 'هاتف الولي', 'مكان الدروس', 'التوقيت', 'تاريخ التسجيل'];
+    
+    let csvContent = '\uFEFF'; // BOM لدعم UTF-8
+    csvContent += headers.join(',') + '\n';
+    
+    registeredStudents.forEach((student, index) => {
+        const foujName = getFoujName(student.location, student.schedule);
+        const registrationDate = student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString('ar-DZ');
+        
+        const row = [
+            index + 1,
+            foujName,
+            student.fullName,
+            student.studentType,
+            student.school || 'غير محدد',
+            student.branch,
+            student.averageGrade,
+            student.mathLevel,
+            student.personalPhone,
+            student.guardianPhone,
+            student.location,
+            student.schedule,
+            registrationDate
+        ];
+        
+        csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+    });
+    
+    // تحميل الملف
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `تسجيلات_الطلاب_${new Date().toLocaleDateString('ar-DZ')}.csv`;
+    link.click();
+    
+    showAlert('تم تصدير البيانات بنجاح', 'success');
+}
+
+// تصدير الفوج الحالي
+function exportCurrentFoujToExcel() {
+    let studentsToExport = registeredStudents;
+    let filename = 'جميع_الطلاب';
+    
+    if (currentSelectedFouj) {
+        studentsToExport = registeredStudents.filter(s => {
+            const foujName = getFoujName(s.location, s.schedule);
+            return foujName === currentSelectedFouj;
+        });
+        filename = currentSelectedFouj.replace(/\s+/g, '_');
+    }
+    
+    if (studentsToExport.length === 0) {
+        showAlert('لا توجد بيانات للتصدير', 'danger');
+        return;
+    }
+    
+    // نفس منطق التصدير
+    const headers = ['الرقم', 'الاسم واللقب', 'نوع الطالب', 'الثانوية', 'الشعبة', 'المعدل', 'مستوى الرياضيات', 'الهاتف الشخصي', 'هاتف الولي', 'مكان الدروس', 'التوقيت', 'تاريخ التسجيل'];
+    
+    let csvContent = '\uFEFF';
+    csvContent += headers.join(',') + '\n';
+    
+    studentsToExport.forEach((student, index) => {
+        const registrationDate = student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString('ar-DZ');
+        
+        const row = [
+            index + 1,
+            student.fullName,
+            student.studentType,
+            student.school || 'غير محدد',
+            student.branch,
+            student.averageGrade,
+            student.mathLevel,
+            student.personalPhone,
+            student.guardianPhone,
+            student.location,
+            student.schedule,
+            registrationDate
+        ];
+        
+        csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}_${new Date().toLocaleDateString('ar-DZ')}.csv`;
+    link.click();
+    
+    showAlert(`تم تصدير ${studentsToExport.length} طالب بنجاح`, 'success');
+}
+
+// تصدير نسخة احتياطية JSON
+function exportToJSON() {
+    if (registeredStudents.length === 0) {
+        showAlert('لا توجد بيانات للتصدير', 'danger');
+        return;
+    }
+    
+    const backupData = {
+        exportDate: new Date().toISOString(),
+        totalStudents: registeredStudents.length,
+        students: registeredStudents
+    };
+    
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { 
+        type: 'application/json;charset=utf-8;' 
+    });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `نسخة_احتياطية_${new Date().toLocaleDateString('ar-DZ')}.json`;
+    link.click();
+    
+    showAlert('تم إنشاء النسخة الاحتياطية بنجاح', 'success');
+}
+
+// تحديث البيانات
+async function refreshData() {
+    console.log('🔄 تحديث البيانات...');
+    await loadStudentsFromFirebase();
+    updateAdminDisplay();
+    showAlert('تم تحديث البيانات بنجاح!', 'success');
 }
 
 // دوال لوحة التحكم
@@ -614,8 +1028,7 @@ function confirmPassword() {
         cancelPassword();
         showPage('adminPanel');
         loadStudentsFromFirebase().then(() => {
-            displayFoujStats();
-            displayStudentsTable();
+            updateAdminDisplay();
         });
     } else if (password.trim() === '') {
         showAlert('يرجى إدخال كلمة المرور', 'danger');
@@ -656,9 +1069,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // تهيئة Firebase
     initializeFirebase();
-    
-    // تحميل البيانات
-    loadStudentsFromFirebase();
     
     // إنشاء زر لوحة التحكم
     createAdminButton();
@@ -720,3 +1130,7 @@ window.exportCurrentFoujToExcel = exportCurrentFoujToExcel;
 window.refreshData = refreshData;
 window.filterByFouj = filterByFouj;
 window.filterStudents = filterStudents;
+window.editStudent = editStudent;
+window.deleteStudent = deleteStudent;
+window.confirmDeleteStudent = confirmDeleteStudent;
+window.filterByFoujName = filterByFoujName;

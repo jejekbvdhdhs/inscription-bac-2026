@@ -1413,3 +1413,4 @@ window.filterByFoujName = filterByFoujName;
 window.editToggleSchool = editToggleSchool;
 window.updateEditScheduleOptions = updateEditScheduleOptions;
 window.closeEditStudentModal = closeEditStudentModal;
+

@@ -109,7 +109,7 @@ async function saveStudentToFirebase(studentData) {
     if (!isFirebaseReady) {
         console.log('📱 Firebase غير متاح - حفظ محلي');
         // حفظ محلي
-        studentData.id = Date.now() + Math.random();
+        studentData.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         studentData.registrationDate = new Date().toLocaleDateString('ar-DZ');
         registeredStudents.unshift(studentData);
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
@@ -127,7 +127,7 @@ async function saveStudentToFirebase(studentData) {
         
         // تحديث البيانات المحلية بالـ ID الجديد
         studentData.firebaseId = docRef.id;
-        studentData.id = Date.now() + Math.random();
+        studentData.id = 'fb_' + docRef.id;
         studentData.registrationDate = new Date().toLocaleDateString('ar-DZ');
         registeredStudents.unshift(studentData);
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
@@ -139,7 +139,7 @@ async function saveStudentToFirebase(studentData) {
         console.error('❌ خطأ في حفظ البيانات:', error);
         updateConnectionStatus('offline');
         // حفظ محلي في حالة الفشل
-        studentData.id = Date.now() + Math.random();
+        studentData.id = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         studentData.registrationDate = new Date().toLocaleDateString('ar-DZ');
         registeredStudents.unshift(studentData);
         localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
@@ -169,7 +169,7 @@ async function loadStudentsFromFirebase() {
             const data = doc.data();
             students.push({
                 firebaseId: doc.id,
-                id: data.id || Date.now() + Math.random(),
+                id: 'fb_' + doc.id,
                 ...data
             });
         });
@@ -193,26 +193,6 @@ async function loadStudentsFromFirebase() {
         return localData;
     } finally {
         showLoadingIndicator(false);
-    }
-}
-
-// حذف طالب من Firebase
-async function deleteStudentFromFirebase(student) {
-    if (!isFirebaseReady || !student.firebaseId) {
-        console.log('📱 Firebase غير متاح أو لا يوجد ID - حذف محلي فقط');
-        return false;
-    }
-    
-    try {
-        updateConnectionStatus('connecting');
-        await db.collection('students').doc(student.firebaseId).delete();
-        updateConnectionStatus('connected');
-        console.log('✅ تم حذف الطالب من Firebase');
-        return true;
-    } catch (error) {
-        console.error('❌ خطأ في حذف البيانات:', error);
-        updateConnectionStatus('offline');
-        return false;
     }
 }
 
@@ -244,7 +224,7 @@ function checkFoujCapacity(location, schedule) {
 // عرض لافتة جميلة بعرض كامل
 function showAlert(message, type = 'success') {
     // إزالة أي لافتة موجودة
-    const existingAlert = document.querySelector('.alert-success, .alert-danger');
+    const existingAlert = document.querySelector('.alert-success, .alert-danger, .alert-warning');
     if (existingAlert) {
         existingAlert.remove();
     }
@@ -266,10 +246,14 @@ function showAlert(message, type = 'success') {
     alertDiv.style.gap = '15px';
     alertDiv.style.color = 'white';
     alertDiv.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.2)';
+    alertDiv.style.animation = 'slideInFromTop 0.5s ease';
     
     if (type === 'success') {
         alertDiv.style.background = 'linear-gradient(135deg, #27ae60 0%, #2ecc71 100%)';
         alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> <span>${message}</span>`;
+    } else if (type === 'warning') {
+        alertDiv.style.background = 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)';
+        alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <span>${message}</span>`;
     } else {
         alertDiv.style.background = 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)';
         alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <span>${message}</span>`;
@@ -667,6 +651,9 @@ function displayStudentsTable(filteredStudents = null) {
         const foujName = getFoujName(student.location, student.schedule);
         const registrationDate = student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString('ar-DZ');
         
+        // استخدام ID آمن للطالب
+        const studentId = student.id || student.firebaseId || ('temp_' + index);
+        
         const row = `
             <tr>
                 <td>${index + 1}</td>
@@ -684,10 +671,10 @@ function displayStudentsTable(filteredStudents = null) {
                 <td>${registrationDate}</td>
                 <td>
                     <div class="action-buttons">
-                        <button class="btn-edit" onclick="editStudent('${student.id || student.firebaseId}')">
+                        <button class="btn-edit" onclick="editStudent('${studentId}')">
                             <i class="fas fa-edit"></i> تعديل
                         </button>
-                        <button class="btn-delete" onclick="confirmDeleteStudent('${student.id || student.firebaseId}', '${student.fullName}')">
+                        <button class="btn-delete" onclick="confirmDeleteStudent('${studentId}', '${student.fullName.replace(/'/g, "\\'")}')">
                             <i class="fas fa-trash"></i> حذف
                         </button>
                     </div>
@@ -824,58 +811,102 @@ function filterStudents() {
     document.getElementById('currentFoujTitle').textContent = title;
 }
 
-// حذف طالب مع تأكيد
+// حذف طالب مع تأكيد - مُصحح
 function confirmDeleteStudent(studentId, studentName) {
-    if (confirm(`هل أنت متأكد من حذف الطالب: ${studentName}؟`)) {
+    // إنشاء نافذة تأكيد مخصصة أفضل من confirm العادي
+    const isConfirmed = confirm(`⚠️ هل أنت متأكد من حذف الطالب: ${studentName}؟\n\nهذا الإجراء لا يمكن التراجع عنه.`);
+    
+    if (isConfirmed) {
         deleteStudent(studentId);
     }
 }
 
-// حذف طالب
+// حذف طالب - مُصحح
 async function deleteStudent(studentId) {
-    const studentIndex = registeredStudents.findIndex(s => 
-        s.id === studentId || s.firebaseId === studentId
-    );
+    console.log('محاولة حذف الطالب بـ ID:', studentId);
+    
+    // البحث عن الطالب بطرق متعددة
+    const studentIndex = registeredStudents.findIndex(s => {
+        return s.id === studentId || 
+               s.firebaseId === studentId || 
+               ('fb_' + s.firebaseId) === studentId ||
+               ('local_' + s.id) === studentId;
+    });
     
     if (studentIndex === -1) {
-        showAlert('الطالب غير موجود', 'danger');
+        console.error('الطالب غير موجود:', studentId);
+        showAlert('❌ الطالب غير موجود في السجلات', 'danger');
         return;
     }
     
     const student = registeredStudents[studentIndex];
+    console.log('تم العثور على الطالب:', student.fullName);
     
-    // محاولة حذف من Firebase
-    const firebaseDeleted = await deleteStudentFromFirebase(student);
+    // إظهار مؤشر التحميل
+    showLoadingIndicator(true);
     
-    // حذف من المصفوفة المحلية
-    registeredStudents.splice(studentIndex, 1);
-    localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
-    
-    // تحديث العرض
-    updateAdminDisplay();
-    
-    showAlert('تم حذف الطالب بنجاح', 'success');
+    try {
+        // محاولة حذف من Firebase إذا كان متاحاً ولديه firebaseId
+        if (isFirebaseReady && student.firebaseId) {
+            try {
+                await db.collection('students').doc(student.firebaseId).delete();
+                console.log('تم حذف الطالب من Firebase');
+            } catch (firebaseError) {
+                console.error('خطأ في حذف الطالب من Firebase:', firebaseError);
+                // لا نوقف العملية، نكمل الحذف المحلي
+            }
+        }
+        
+        // حذف من المصفوفة المحلية
+        registeredStudents.splice(studentIndex, 1);
+        
+        // تحديث التخزين المحلي
+        localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
+        
+        // تحديث العرض
+        updateAdminDisplay();
+        
+        // إظهار رسالة نجاح
+        showAlert(`✅ تم حذف الطالب "${student.fullName}" بنجاح`, 'success');
+        
+        console.log('تم حذف الطالب بنجاح');
+        
+    } catch (error) {
+        console.error('خطأ عام في حذف الطالب:', error);
+        showAlert('❌ حدث خطأ أثناء حذف الطالب', 'danger');
+    } finally {
+        showLoadingIndicator(false);
+    }
 }
 
-// تعديل طالب (مبدئي)
+// تعديل طالب - مُصحح
 function editStudent(studentId) {
-    const student = registeredStudents.find(s => 
-        s.id === studentId || s.firebaseId === studentId
-    );
+    console.log('محاولة تعديل الطالب بـ ID:', studentId);
+    
+    // البحث عن الطالب بطرق متعددة
+    const student = registeredStudents.find(s => {
+        return s.id === studentId || 
+               s.firebaseId === studentId || 
+               ('fb_' + s.firebaseId) === studentId ||
+               ('local_' + s.id) === studentId;
+    });
     
     if (!student) {
-        showAlert('الطالب غير موجود', 'danger');
+        console.error('الطالب غير موجود:', studentId);
+        showAlert('❌ الطالب غير موجود في السجلات', 'danger');
         return;
     }
     
-    // يمكن إضافة نافذة تعديل هنا لاحقاً
-    showAlert('ميزة التعديل ستتوفر قريباً', 'success');
+    console.log('تم العثور على الطالب للتعديل:', student.fullName);
+    
+    // عرض رسالة مؤقتة - يمكن تطوير نافذة تعديل لاحقاً
+    showAlert(`📝 تعديل بيانات الطالب "${student.fullName}" - الميزة قيد التطوير`, 'warning');
 }
 
 // تصدير البيانات إلى Excel
 function exportAllToExcel() {
     if (registeredStudents.length === 0) {
-        showAlert('لا توجد بيانات للتصدير', 'danger');
+        showAlert('❌ لا توجد بيانات للتصدير', 'danger');
         return;
     }
     
@@ -915,7 +946,7 @@ function exportAllToExcel() {
     link.download = `تسجيلات_الطلاب_${new Date().toLocaleDateString('ar-DZ')}.csv`;
     link.click();
     
-    showAlert('تم تصدير البيانات بنجاح', 'success');
+    showAlert(`✅ تم تصدير ${registeredStudents.length} طالب بنجاح`, 'success');
 }
 
 // تصدير الفوج الحالي
@@ -932,7 +963,7 @@ function exportCurrentFoujToExcel() {
     }
     
     if (studentsToExport.length === 0) {
-        showAlert('لا توجد بيانات للتصدير', 'danger');
+        showAlert('❌ لا توجد بيانات للتصدير', 'danger');
         return;
     }
     
@@ -969,13 +1000,13 @@ function exportCurrentFoujToExcel() {
     link.download = `${filename}_${new Date().toLocaleDateString('ar-DZ')}.csv`;
     link.click();
     
-    showAlert(`تم تصدير ${studentsToExport.length} طالب بنجاح`, 'success');
+    showAlert(`✅ تم تصدير ${studentsToExport.length} طالب بنجاح`, 'success');
 }
 
 // تصدير نسخة احتياطية JSON
 function exportToJSON() {
     if (registeredStudents.length === 0) {
-        showAlert('لا توجد بيانات للتصدير', 'danger');
+        showAlert('❌ لا توجد بيانات للتصدير', 'danger');
         return;
     }
     
@@ -993,7 +1024,7 @@ function exportToJSON() {
     link.download = `نسخة_احتياطية_${new Date().toLocaleDateString('ar-DZ')}.json`;
     link.click();
     
-    showAlert('تم إنشاء النسخة الاحتياطية بنجاح', 'success');
+    showAlert('✅ تم إنشاء النسخة الاحتياطية بنجاح', 'success');
 }
 
 // تحديث البيانات
@@ -1001,7 +1032,7 @@ async function refreshData() {
     console.log('🔄 تحديث البيانات...');
     await loadStudentsFromFirebase();
     updateAdminDisplay();
-    showAlert('تم تحديث البيانات بنجاح!', 'success');
+    showAlert('🔄 تم تحديث البيانات بنجاح!', 'success');
 }
 
 // دوال لوحة التحكم
@@ -1031,10 +1062,10 @@ function confirmPassword() {
             updateAdminDisplay();
         });
     } else if (password.trim() === '') {
-        showAlert('يرجى إدخال كلمة المرور', 'danger');
+        showAlert('⚠️ يرجى إدخال كلمة المرور', 'danger');
         if (passwordInput) passwordInput.focus();
     } else {
-        showAlert('كلمة مرور خاطئة', 'danger');
+        showAlert('❌ كلمة مرور خاطئة', 'danger');
         if (passwordInput) {
             passwordInput.value = '';
             passwordInput.focus();

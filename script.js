@@ -4,6 +4,7 @@ const MAX_STUDENTS_PER_FOUJ = 50;
 let currentSelectedFouj = '';
 let isFirebaseReady = false;
 let pendingStudentData = null;
+let currentEditingStudentUID = null; // للتعديل
 
 // تعريف أسماء الأفواج
 const FOUJ_NAMES = {
@@ -21,7 +22,7 @@ const FOUJ_OPTIONS = [
     { key: 'برج بوعريريج_يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)', name:'فوج البرج علمي 13:00', location:'برج بوعريريج', schedule:'يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)'}
 ];
 
-// دالة مولد ID فريد - أساس الحل
+// دالة مولد ID فريد
 function generateStudentUID(student) {
     if (student.firebaseId) {
         return 'fb_' + student.firebaseId;
@@ -30,7 +31,7 @@ function generateStudentUID(student) {
     }
 }
 
-// دالة البحث عن الطالب المُحسنة - أساس الحل
+// دالة البحث عن الطالب المُحسنة
 function findStudentByUID(uid) {
     console.log('🔍 البحث عن الطالب بـ UID:', uid);
     
@@ -269,7 +270,7 @@ function checkFoujCapacity(location, schedule) {
     return foujStudents.length;
 }
 
-// عرض لافتة محسنة - إصلاح مشكلة عدم الظهور
+// عرض لافتة محسنة
 function showAlert(message, type = 'success', duration = 5000) {
     console.log(`🚨 عرض لافتة: ${type} - ${message}`);
     
@@ -617,9 +618,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // معالج نموذج التعديل
+    const editForm = document.getElementById('editStudentForm');
+    if (editForm) {
+        editForm.addEventListener('submit', saveEditedStudent);
+    }
 });
 
-// ===== دوال لوحة التحكم المُصححة =====
+// ===== دوال لوحة التحكم =====
 
 function displayFoujStats() {
     const container = document.getElementById('foujStatsContainer');
@@ -831,7 +838,239 @@ function filterStudents() {
     document.getElementById('currentFoujTitle').textContent = title;
 }
 
-// حذف طالب مع تأكيد - مُصحح نهائياً
+// ===== دوال التعديل الكاملة =====
+
+// دالة فتح نافذة التعديل وتعبئة البيانات
+function editStudent(studentUID) {
+    console.log('✏️ فتح نافذة تعديل للطالب:', studentUID);
+    
+    const student = findStudentByUID(studentUID);
+    
+    if (!student) {
+        console.error('❌ فشل العثور على الطالب للتعديل');
+        showAlert('❌ فشل في العثور على الطالب في السجلات', 'danger');
+        return;
+    }
+    
+    console.log('✅ تم العثور على الطالب للتعديل:', student.fullName);
+    
+    // حفظ UID الطالب الحالي
+    currentEditingStudentUID = studentUID;
+    
+    // تعبئة البيانات في النموذج
+    
+    // نوع الطالب
+    const studentTypeRadios = document.querySelectorAll('input[name="editStudentType"]');
+    studentTypeRadios.forEach(radio => {
+        radio.checked = radio.value === student.studentType;
+    });
+    
+    // الثانوية
+    const schoolContainer = document.getElementById('editSchoolContainer');
+    const schoolSelect = document.getElementById('editSchool');
+    if (student.studentType === 'نظامي') {
+        schoolContainer.style.display = 'block';
+        schoolSelect.required = true;
+        schoolSelect.value = student.school || '';
+    } else {
+        schoolContainer.style.display = 'none';
+        schoolSelect.required = false;
+        schoolSelect.value = '';
+    }
+    
+    // البيانات الأساسية
+    document.getElementById('editFullName').value = student.fullName || '';
+    document.getElementById('editBirthDate').value = student.birthDate || '';
+    document.getElementById('editAverageGrade').value = student.averageGrade || '';
+    document.getElementById('editMathLevel').value = student.mathLevel || '';
+    document.getElementById('editPersonalPhone').value = student.personalPhone || '';
+    document.getElementById('editGuardianPhone').value = student.guardianPhone || '';
+    
+    // الشعبة
+    const branchRadios = document.querySelectorAll('input[name="editBranch"]');
+    branchRadios.forEach(radio => {
+        radio.checked = radio.value === student.branch;
+    });
+    
+    // المكان
+    const locationRadios = document.querySelectorAll('input[name="editLocation"]');
+    locationRadios.forEach(radio => {
+        radio.checked = radio.value === student.location;
+    });
+    
+    // تحديث خيارات التوقيت
+    updateEditScheduleOptions();
+    
+    // تحديد التوقيت المحدد
+    setTimeout(() => {
+        const scheduleRadios = document.querySelectorAll('input[name="editSchedule"]');
+        scheduleRadios.forEach(radio => {
+            radio.checked = radio.value === student.schedule;
+        });
+    }, 100);
+    
+    // إظهار النافذة
+    document.getElementById('editStudentModal').style.display = 'flex';
+}
+
+// دالة التحكم في عرض حقل الثانوية
+function editToggleSchool(radio) {
+    const schoolContainer = document.getElementById('editSchoolContainer');
+    const schoolSelect = document.getElementById('editSchool');
+    
+    if (radio.value === 'نظامي') {
+        schoolContainer.style.display = 'block';
+        schoolSelect.required = true;
+    } else {
+        schoolContainer.style.display = 'none';
+        schoolSelect.required = false;
+        schoolSelect.value = '';
+    }
+}
+
+// دالة تحديث خيارات التوقيت في نافذة التعديل
+function updateEditScheduleOptions() {
+    const selectedLocation = document.querySelector('input[name="editLocation"]:checked');
+    const selectedBranch = document.querySelector('input[name="editBranch"]:checked');
+    const scheduleChoices = document.getElementById('editScheduleChoices');
+    
+    if (!selectedLocation) {
+        scheduleChoices.innerHTML = '';
+        return;
+    }
+    
+    let scheduleHTML = '';
+    
+    if (selectedLocation.value === 'رأس الوادي') {
+        scheduleHTML = `
+            <label class="radio-label">
+                <input required type="radio" name="editSchedule" value="يوم الجمعة صباحا الساعة 9:00">
+                <span class="radio-icon">🕘</span> يوم الجمعة صباحا الساعة 9:00
+            </label>
+        `;
+    } else if (selectedLocation.value === 'برج بوعريريج' && selectedBranch) {
+        if (selectedBranch.value === 'رياضيات' || selectedBranch.value === 'تقني رياضي') {
+            scheduleHTML = `
+                <label class="radio-label">
+                    <input required type="radio" name="editSchedule" value="يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)">
+                    <span class="radio-icon">🕗</span> يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)
+                </label>
+            `;
+        } else if (selectedBranch.value === 'علوم تجريبية') {
+            scheduleHTML = `
+                <label class="radio-label">
+                    <input required type="radio" name="editSchedule" value="يوم السبت 10:30 صباحا (علوم تجريبية)">
+                    <span class="radio-icon">🕥</span> يوم السبت 10:30 صباحا (علوم تجريبية)
+                </label>
+                <label class="radio-label">
+                    <input required type="radio" name="editSchedule" value="يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)">
+                    <span class="radio-icon">🕐</span> يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)
+                </label>
+            `;
+        }
+    }
+    
+    scheduleChoices.innerHTML = scheduleHTML;
+}
+
+// دالة حفظ التغييرات
+async function saveEditedStudent(e) {
+    e.preventDefault();
+    
+    if (!currentEditingStudentUID) {
+        showAlert('❌ خطأ: لا يوجد طالب قيد التعديل', 'danger');
+        return;
+    }
+    
+    // جمع البيانات المُحدثة
+    const updatedData = {
+        studentType: document.querySelector('input[name="editStudentType"]:checked')?.value,
+        school: document.getElementById('editSchool').value || 'غير محدد',
+        fullName: document.getElementById('editFullName').value.trim(),
+        birthDate: document.getElementById('editBirthDate').value,
+        branch: document.querySelector('input[name="editBranch"]:checked')?.value,
+        averageGrade: document.getElementById('editAverageGrade').value,
+        mathLevel: document.getElementById('editMathLevel').value,
+        personalPhone: document.getElementById('editPersonalPhone').value.trim(),
+        guardianPhone: document.getElementById('editGuardianPhone').value.trim(),
+        location: document.querySelector('input[name="editLocation"]:checked')?.value,
+        schedule: document.querySelector('input[name="editSchedule"]:checked')?.value
+    };
+    
+    // التحقق من صحة البيانات
+    if (!updatedData.studentType || !updatedData.fullName || !updatedData.location || !updatedData.schedule) {
+        showAlert('⚠️ يرجى ملء جميع الحقول المطلوبة', 'warning');
+        return;
+    }
+    
+    console.log('💾 حفظ بيانات محدثة للطالب:', currentEditingStudentUID);
+    
+    // العثور على الطالب في المصفوفة
+    const studentIndex = registeredStudents.findIndex(s => {
+        const sUID = s.uid || generateStudentUID(s);
+        return sUID === currentEditingStudentUID;
+    });
+    
+    if (studentIndex === -1) {
+        showAlert('❌ فشل في العثور على الطالب للتحديث', 'danger');
+        return;
+    }
+    
+    const originalStudent = registeredStudents[studentIndex];
+    
+    // إظهار مؤشر التحميل
+    showLoadingIndicator(true);
+    
+    try {
+        // تحديث البيانات المحلية
+        registeredStudents[studentIndex] = { ...originalStudent, ...updatedData };
+        
+        // حفظ في التخزين المحلي
+        localStorage.setItem('registeredStudents', JSON.stringify(registeredStudents));
+        
+        // تحديث في Firebase إذا كان متاحاً
+        if (isFirebaseReady && originalStudent.firebaseId) {
+            try {
+                await db.collection('students').doc(originalStudent.firebaseId).update(updatedData);
+                console.log('✅ تم تحديث البيانات في Firebase');
+            } catch (firebaseError) {
+                console.error('⚠️ خطأ في تحديث Firebase:', firebaseError);
+                showAlert('⚠️ تم التحديث محلياً - مشكلة في الاتصال بقاعدة البيانات', 'warning');
+            }
+        }
+        
+        // إغلاق النافذة
+        closeEditStudentModal();
+        
+        // تحديث العرض
+        updateAdminDisplay();
+        
+        // إظهار رسالة نجاح
+        showAlert(`✅ تم تحديث بيانات الطالب "${updatedData.fullName}" بنجاح`, 'success');
+        
+        console.log('🎉 تم حفظ التغييرات بنجاح');
+        
+    } catch (error) {
+        console.error('💥 خطأ في حفظ التغييرات:', error);
+        showAlert('❌ حدث خطأ أثناء حفظ التغييرات', 'danger');
+    } finally {
+        showLoadingIndicator(false);
+    }
+}
+
+// دالة إغلاق نافذة التعديل
+function closeEditStudentModal() {
+    const modal = document.getElementById('editStudentModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    currentEditingStudentUID = null;
+    console.log('🚪 تم إغلاق نافذة التعديل');
+}
+
+// ===== دوال الحذف =====
+
+// حذف طالب مع تأكيد
 function confirmDeleteStudent(studentUID, studentName) {
     console.log('🗑️ طلب حذف الطالب:', studentUID, studentName);
     
@@ -847,7 +1086,7 @@ function confirmDeleteStudent(studentUID, studentName) {
     }
 }
 
-// حذف طالب - الإصلاح النهائي
+// حذف طالب
 async function deleteStudent(studentUID) {
     console.log('🗑️ بدء عملية حذف الطالب:', studentUID);
     
@@ -913,23 +1152,7 @@ async function deleteStudent(studentUID) {
     }
 }
 
-// تعديل طالب - مُصحح
-function editStudent(studentUID) {
-    console.log('✏️ طلب تعديل الطالب:', studentUID);
-    
-    const student = findStudentByUID(studentUID);
-    
-    if (!student) {
-        console.error('❌ فشل العثور على الطالب للتعديل');
-        showAlert('❌ فشل في العثور على الطالب في السجلات', 'danger');
-        return;
-    }
-    
-    console.log('✅ تم العثور على الطالب للتعديل:', student.fullName);
-    
-    // عرض رسالة مؤقتة - يمكن تطوير نافذة تعديل لاحقاً
-    showAlert(`📝 تعديل بيانات الطالب "${student.fullName}" - الميزة قيد التطوير`, 'warning', 4000);
-}
+// ===== دوال التصدير =====
 
 // تصدير البيانات إلى Excel
 function exportAllToExcel() {
@@ -1057,7 +1280,8 @@ async function refreshData() {
     showAlert('🔄 تم تحديث البيانات بنجاح!', 'success');
 }
 
-// دوال لوحة التحكم
+// ===== دوال لوحة التحكم =====
+
 function accessAdminPanel() {
     showPasswordModal();
 }
@@ -1186,3 +1410,6 @@ window.editStudent = editStudent;
 window.deleteStudent = deleteStudent;
 window.confirmDeleteStudent = confirmDeleteStudent;
 window.filterByFoujName = filterByFoujName;
+window.editToggleSchool = editToggleSchool;
+window.updateEditScheduleOptions = updateEditScheduleOptions;
+window.closeEditStudentModal = closeEditStudentModal;

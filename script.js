@@ -6,6 +6,58 @@ let isFirebaseReady = false
 let pendingStudentData = null
 let currentEditingStudentUID = null // للتعديل
 let studentToDelete = null // لحفظ معرف الطالب المراد حذفه
+const firebase = null // Declare firebase variable
+const db = null // Declare db variable
+
+// إضافة بيانات تجريبية للاختبار في بداية الملف بعد المتغيرات
+// بيانات تجريبية للاختبار
+const testStudents = [
+  {
+    uid: "test_001",
+    studentType: "نظامي",
+    school: "ثانوية عيسى حميطوش - برج بوعريريج",
+    fullName: "أحمد محمد الصالح",
+    birthDate: "2007-03-15",
+    branch: "علوم تجريبية",
+    averageGrade: "15.50",
+    mathLevel: "جيد جداً",
+    personalPhone: "0555123456",
+    guardianPhone: "0666789012",
+    location: "برج بوعريريج",
+    schedule: "يوم السبت 10:30 صباحا (علوم تجريبية)",
+    registrationDate: "2025-01-15",
+  },
+  {
+    uid: "test_002",
+    studentType: "حر",
+    school: "غير محدد",
+    fullName: "فاطمة الزهراء بن علي",
+    birthDate: "2007-07-22",
+    branch: "رياضيات",
+    averageGrade: "17.25",
+    mathLevel: "ممتاز",
+    personalPhone: "0777456789",
+    guardianPhone: "0555987654",
+    location: "برج بوعريريج",
+    schedule: "يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)",
+    registrationDate: "2025-01-16",
+  },
+  {
+    uid: "test_003",
+    studentType: "نظامي",
+    school: "ثانوية بوزراعة أحسن - رأس الوادي",
+    fullName: "خالد عبد الرحمن",
+    birthDate: "2007-11-08",
+    branch: "تقني رياضي",
+    averageGrade: "14.75",
+    mathLevel: "جيد",
+    personalPhone: "0666321654",
+    guardianPhone: "0777852963",
+    location: "رأس الوادي",
+    schedule: "يوم الجمعة صباحا الساعة 9:00",
+    registrationDate: "2025-01-17",
+  },
+]
 
 // تعريف أسماء الأفواج
 const FOUJ_NAMES = {
@@ -144,7 +196,18 @@ function initializeFirebase() {
     updateConnectionStatus("offline")
     console.warn("⚠️ Firebase غير متاح - سيتم استخدام التخزين المحلي")
 
-    registeredStudents = JSON.parse(localStorage.getItem("registeredStudents")) || []
+    // تحميل البيانات المحلية أو إضافة البيانات التجريبية
+    const localData = JSON.parse(localStorage.getItem("registeredStudents")) || []
+
+    // إذا لم توجد بيانات محلية، أضف البيانات التجريبية
+    if (localData.length === 0) {
+      registeredStudents = [...testStudents]
+      localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
+      console.log("✅ تم إضافة البيانات التجريبية:", registeredStudents.length, "طلاب")
+    } else {
+      registeredStudents = localData
+    }
+
     // تعيين UID للطلاب المحليين
     registeredStudents.forEach((student) => {
       if (!student.uid) {
@@ -165,6 +228,7 @@ function initializeFirebase() {
 // دالة مساعدة لتحديث عرض لوحة التحكم
 function updateAdminDisplay() {
   if (document.getElementById("adminPanel") && document.getElementById("adminPanel").classList.contains("active")) {
+    displayTotalCount()
     displayFoujStats()
     displayStudentsTable()
     updateFoujFilters()
@@ -687,6 +751,54 @@ function displayFoujStats() {
         `
     container.innerHTML += cardHtml
   })
+}
+
+// عرض مربع العدد الإجمالي
+function displayTotalCount() {
+  const container = document.getElementById("totalCountContainer")
+  if (!container) return
+
+  const totalStudents = registeredStudents.length
+
+  // حساب التوزيع حسب المكان
+  const borgCount = registeredStudents.filter((s) => s.location === "برج بوعريريج").length
+  const rasCount = registeredStudents.filter((s) => s.location === "رأس الوادي").length
+
+  // حساب التوزيع حسب الشعبة
+  const scienceCount = registeredStudents.filter((s) => s.branch === "علوم تجريبية").length
+  const mathCount = registeredStudents.filter((s) => s.branch === "رياضيات").length
+  const techCount = registeredStudents.filter((s) => s.branch === "تقني رياضي").length
+
+  container.innerHTML = `
+    <div class="total-count-box">
+      <div class="total-count-content">
+        <div class="total-count-number">
+          <i class="fas fa-users"></i>
+          <span>${totalStudents}</span>
+        </div>
+        <div class="total-count-label">إجمالي الطلاب المسجلين</div>
+        
+        <div class="total-count-details">
+          <div class="count-detail">
+            <div class="count-detail-number">${borgCount}</div>
+            <div class="count-detail-label">برج بوعريريج</div>
+          </div>
+          <div class="count-detail">
+            <div class="count-detail-number">${rasCount}</div>
+            <div class="count-detail-label">رأس الوادي</div>
+          </div>
+          <div class="count-detail">
+            <div class="count-detail-number">${scienceCount}</div>
+            <div class="count-detail-label">علوم تجريبية</div>
+          </div>
+          <div class="count-detail">
+            <div class="count-detail-number">${mathCount + techCount}</div>
+            <div class="count-detail-label">رياضيات + تقني</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
 }
 
 function displayStudentsTable(filteredStudents = null) {
@@ -1413,18 +1525,60 @@ function togglePasswordVisibility() {
   }
 }
 
-// تهيئة التطبيق
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("🚀 تحميل التطبيق...")
+// إضافة دالة اختبار التعديل في نهاية الملف قبل تصدير الدوال
+function testEditFunction() {
+  console.log("🧪 بدء اختبار وظيفة التعديل...")
 
-  // تهيئة Firebase
-  initializeFirebase()
+  // التأكد من وجود بيانات للاختبار
+  if (registeredStudents.length === 0) {
+    console.log("📝 إضافة بيانات تجريبية...")
+    registeredStudents = [...testStudents]
+    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
+    updateAdminDisplay()
+  }
 
-  // إنشاء زر لوحة التحكم
-  createAdminButton()
-})
+  // فتح لوحة التحكم مباشرة
+  showPage("adminPanel")
+  updateAdminDisplay()
 
-// إنشاء زر لوحة التحكم
+  // محاكاة النقر على زر التعديل للطالب الأول
+  setTimeout(() => {
+    const firstStudent = registeredStudents[0]
+    if (firstStudent) {
+      console.log("✏️ فتح نافذة تعديل للطالب:", firstStudent.fullName)
+      editStudent(firstStudent.uid)
+
+      // إظهار رسالة توضيحية
+      setTimeout(() => {
+        showAlert("🧪 تم فتح نافذة التعديل للطالب الأول. جرب تعديل البيانات!", "success", 8000)
+      }, 500)
+    }
+  }, 1000)
+}
+
+// إضافة زر اختبار مؤقت
+function createTestButton() {
+  const testBtn = document.createElement("button")
+  testBtn.innerHTML = "🧪 اختبار التعديل"
+  testBtn.style.position = "fixed"
+  testBtn.style.top = "90px"
+  testBtn.style.right = "20px"
+  testBtn.style.zIndex = "9998"
+  testBtn.style.backgroundColor = "#3498db"
+  testBtn.style.color = "white"
+  testBtn.style.border = "none"
+  testBtn.style.padding = "10px 15px"
+  testBtn.style.borderRadius = "5px"
+  testBtn.style.cursor = "pointer"
+  testBtn.style.fontSize = "14px"
+  testBtn.style.fontWeight = "600"
+  testBtn.onclick = testEditFunction
+  document.body.appendChild(testBtn)
+
+  console.log("🧪 تم إضافة زر الاختبار")
+}
+
+// تحديث دالة createAdminButton لإضافة زر الاختبار
 function createAdminButton() {
   const existingButton = document.querySelector(".admin-control-button")
   if (existingButton) {
@@ -1455,9 +1609,22 @@ function createAdminButton() {
   adminBtn.style.justifyContent = "center"
 
   adminBtn.addEventListener("click", accessAdminPanel)
-
   document.body.appendChild(adminBtn)
+
+  // إضافة زر الاختبار
+  createTestButton()
 }
+
+// تهيئة التطبيق
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("🚀 تحميل التطبيق...")
+
+  // تهيئة Firebase
+  initializeFirebase()
+
+  // إنشاء زر لوحة التحكم
+  createAdminButton()
+})
 
 // تصدير الدوال الجديدة
 window.proceedWithDelete = proceedWithDelete
@@ -1491,3 +1658,6 @@ window.filterByFoujName = filterByFoujName
 window.editToggleSchool = editToggleSchool
 window.updateEditScheduleOptions = updateEditScheduleOptions
 window.closeEditStudentModal = closeEditStudentModal
+
+// تصدير دالة الاختبار
+window.testEditFunction = testEditFunction

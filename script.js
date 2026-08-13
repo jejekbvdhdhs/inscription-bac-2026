@@ -32,7 +32,72 @@ const FOUJ_OPTIONS = [
   }
 ];
 
-// ===== دوال مساعدة =====
+// ===== قائمة الثانويات (برج بوعريريج) - مصدر واحد يُستخدم في القائمة المنبثقة والتحقق =====
+const SCHOOLS_LIST = [
+  "مؤسسة التربية والتعليم القوس الأول الخاصة - برج بوعريريج",
+  "ثانوية سيفي الطاهر - ثنية النصر",
+  "ثانوية بلم عبد الحفيظ - أولاد ابراهيم",
+  "ثانوية المجاهد يحى بو عزيز - الماين",
+  "ثانوية الشهيد بوز عرورة السعيد - برج بوعريريج",
+  "ثانوية عيسى حميطوش - برج بوعريريج",
+  "ثانوية محمد الشريف بوسام - برج غدير",
+  "ثانوية مالك بن نبي - برج غدير",
+  "ثانوية بن خروف يوسف - الجعافرة",
+  "ثانوية عمار بوجلال مبارك - مجانة",
+  "ثانوية الشهيد زيوال علاوة - الجعافرة",
+  "ثانوية فارح محمد الطيب - القصور",
+  "ثانوية المجاهد المتوفي بن أحمد السعيد - برج بوعريريج",
+  "ثانوية محمادي أحمد - العناصر",
+  "ثانوية ابن احمد الخضر - العناصر",
+  "ثانوية بن سخرية الطيب - المهير",
+  "ثانوية بهاء العلى - خليل",
+  "ثانوية فارس الحسين - برج بوعريريج",
+  "ثانوية بوشمال محمد النذير - المنصورة",
+  "ثانوية كيال عراس - تيكستار",
+  "ثانوية الشيخ عمر ابي حفص - برج زمورة",
+  "ثانوية عبد المجيد بورزق - برج بوعريريج",
+  "ثانوية عبد اللافي بوضياف - عين تاغروت",
+  "ثانوية 545 شهيدا - غيلاسة",
+  "ثانوية على ماضوي - برج بوعريريج",
+  "ثانوية الشهيد بن دريميع احمد المدعو المطروش - برج غدير",
+  "ثانوية عبد الحميد بن باديس - المنصورة",
+  "ثانوية بوزراعة أحسن - رأس الوادي",
+  "ثانوية بلفار اسماعيل - أولاد دحمان",
+  "ثانوية 16 شهيدا - بليمور",
+  "ثانوية سقني عيسى - مجانة",
+  "ثانوية زيري مباركة - بن داود",
+  "ثانوية قصار عبد الله - القصور",
+  "ثانوية الاخوة رباح - رأس الوادي",
+  "ثانوية فرحات عباس - برج بوعريريج",
+  "ثانوية الشريف الرقط - رأس الوادي",
+  "ثانوية احمد خبابة - برج غدير",
+  "ثانوية أول نوفمبر - برج بوعريريج",
+  "مؤسسة التربية والتعليم التحدي الخاصة - برج بوعريريج",
+  "ثانوية عبد الحميد آخروف - برج بوعريريج",
+  "ثانوية شكال محمد امزيان - القلة",
+  "ثانوية العمري بوعافية - حسناوة",
+  "ثانوية السعيد بوعلي - برج بوعريريج",
+  "ثانوية بلعيفة احمد - بن داود",
+  "ثانوية بلميهوب عبد الرحمان - برج بوعريريج",
+  "ثانوية العربي عباسي - سيدي مبارك",
+  "ثانوية بوادي بوسواليم - رأس الوادي",
+  "ثانوية حريزي البشير - العش",
+  "ثانوية المجاهد المتوفي مجدوب محمد - برج بوعريريج",
+  "ثانوية زرقون سليمان - خليل",
+  "ثانوية عبد الحق بن حمودة - المهير",
+  "ثانوية سالم صريفق - رأس الوادي",
+  "ثانوية هواري بومدين - الياشير",
+  "ثانوية محمد المقراني - برج بوعريريج",
+  "ثانوية بن مساهل محمد - بئر قصد علي",
+  "ثانوية صاهد مبارك - الحمادية",
+  "ثانوية الأخوين الشهيدين يوسفي مولود ولعيفة - حرازة",
+  "ثانوية بالعروسي بن يحي - الرابطة",
+  "ثانوية معركة قرن الكبش - تقلعيت",
+  "ثانوية رماش عمر - عين تسرة",
+  "ثانوية السعيد زروقي - برج بوعريريج",
+  "ثانوية 18 فيفري - الحمادية",
+  "أخرى"
+];
 function generateStudentUID(student) {
   return student.firebaseId ? "fb_" + student.firebaseId : "local_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
 }
@@ -123,17 +188,77 @@ function goToHome() { showPage("homePage"); }
 
 function toggleSchoolField(radio) {
   const schoolField = document.getElementById("schoolField");
-  const schoolInput = document.getElementById("school");
+  const schoolSearch = document.getElementById("schoolSearch");
+  const schoolHidden = document.getElementById("school");
+  const schoolOtherWrap = document.getElementById("schoolOtherWrap");
+  const schoolOther = document.getElementById("schoolOther");
   const isRegular = radio.value === "نظامي";
   schoolField.style.display = isRegular ? "block" : "none";
-  if (schoolInput) {
-    if (isRegular) {
-      schoolInput.setAttribute("required", "required");
-    } else {
-      schoolInput.removeAttribute("required");
-      schoolInput.value = "";
-    }
+  if (!isRegular) {
+    if (schoolSearch) schoolSearch.value = "";
+    if (schoolHidden) schoolHidden.value = "";
+    if (schoolOtherWrap) schoolOtherWrap.style.display = "none";
+    if (schoolOther) schoolOther.value = "";
+    const dropdown = document.getElementById("schoolDropdown");
+    if (dropdown) dropdown.classList.remove("active");
   }
+}
+
+// ===== القائمة المنبثقة للثانويات (بحث + اختيار) =====
+function setupSchoolAutocomplete() {
+  const searchInput = document.getElementById("schoolSearch");
+  const hiddenInput = document.getElementById("school");
+  const dropdown = document.getElementById("schoolDropdown");
+  const otherWrap = document.getElementById("schoolOtherWrap");
+  const otherInput = document.getElementById("schoolOther");
+  if (!searchInput || !hiddenInput || !dropdown) return;
+
+  function renderDropdown(filterText) {
+    const filtered = filterText
+      ? SCHOOLS_LIST.filter(s => s.includes(filterText.trim()))
+      : SCHOOLS_LIST;
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = `<div class="school-option no-match">لا توجد نتائج مطابقة</div>`;
+    } else {
+      dropdown.innerHTML = filtered.map(s => {
+        const isSelected = s === hiddenInput.value ? " selected" : "";
+        return `<div class="school-option${isSelected}" data-value="${s.replace(/"/g, "&quot;")}">${s}</div>`;
+      }).join("");
+    }
+    dropdown.classList.add("active");
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove("active");
+  }
+
+  searchInput.addEventListener("focus", () => renderDropdown(searchInput.value));
+  searchInput.addEventListener("input", () => {
+    hiddenInput.value = ""; // إبطال أي اختيار سابق حتى يتم الاختيار من القائمة مجدداً
+    renderDropdown(searchInput.value);
+  });
+
+  dropdown.addEventListener("click", (e) => {
+    const option = e.target.closest(".school-option");
+    if (!option || option.classList.contains("no-match")) return;
+    const value = option.getAttribute("data-value");
+    hiddenInput.value = value;
+    searchInput.value = value;
+    closeDropdown();
+
+    if (value === "أخرى") {
+      otherWrap.style.display = "block";
+      otherInput.focus();
+    } else {
+      otherWrap.style.display = "none";
+      otherInput.value = "";
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".school-autocomplete")) closeDropdown();
+  });
 }
 
 function updateLocationOptions(radio) {
@@ -173,6 +298,7 @@ function updateScheduleOptions() {
 // ===== التسجيل والتفاعلات =====
 document.addEventListener("DOMContentLoaded", () => {
   initializeFirebase();
+  setupSchoolAutocomplete();
 
   // إرسال نموذج التسجيل
   const form = document.getElementById("registrationForm");
@@ -191,18 +317,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // التحقق من اختيار ثانوية صحيحة من القائمة (إلزامي للطلبة النظاميين فقط)
       const studentTypeVal = formData.get("studentType");
+      let finalSchoolVal = (formData.get("school") || "").trim();
       if (studentTypeVal === "نظامي") {
-        const schoolVal = (formData.get("school") || "").trim();
-        const schoolOptions = Array.from(document.querySelectorAll('#schoolsList option')).map(o => o.value);
-        if (!schoolVal || !schoolOptions.includes(schoolVal)) {
+        if (!finalSchoolVal || !SCHOOLS_LIST.includes(finalSchoolVal)) {
           alert("⚠️ يرجى اختيار الثانوية من القائمة المقترحة (اكتب اسمها للبحث ثم اختَرها).");
           return;
+        }
+        if (finalSchoolVal === "أخرى") {
+          const otherVal = (document.getElementById("schoolOther").value || "").trim();
+          if (!otherVal) {
+            alert("⚠️ يرجى كتابة اسم ثانويتك في الخانة المخصصة لذلك.");
+            return;
+          }
+          finalSchoolVal = otherVal;
         }
       }
       
       pendingStudentData = {
         studentType: formData.get("studentType"),
-        school: formData.get("school") || "غير محدد",
+        school: studentTypeVal === "نظامي" ? finalSchoolVal : "غير محدد",
         firstName: formData.get("firstName"),
         lastName: formData.get("lastName"),
         fullName: formData.get("firstName") + " " + formData.get("lastName"),

@@ -2013,3 +2013,30 @@ body {
 .btn-delete-cancel:active {
   transform: translateY(0);
 }
+/* تصميم زر لوحة التحكم */
+.admin-control-button {
+  position: fixed;
+  top: 20px;
+  right: 20px; /* أو left: 20px إذا كنت تريده على اليسار */
+  z-index: 9999;
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000;
+  padding: 15px;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-control-button:hover {
+  background-color: #000000;
+  color: #ffffff;
+  transform: rotate(90deg);
+}

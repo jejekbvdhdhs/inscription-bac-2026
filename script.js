@@ -1,772 +1,394 @@
-// بيانات الطلاب المسجلين مع Firebase
-let registeredStudents = []
-const MAX_STUDENTS_PER_FOUJ = 50
-let currentSelectedFouj = ""
-let isFirebaseReady = false
-let pendingStudentData = null
-let currentEditingStudentUID = null // للتعديل
-let studentToDelete = null // لحفظ معرف الطالب المراد حذفه
+// ===== المتغيرات الأساسية =====
+let registeredStudents = [];
+const MAX_STUDENTS_PER_FOUJ = 50;
+let currentSelectedFouj = "";
+let isFirebaseReady = false;
+let pendingStudentData = null;
 
-// إضافة بيانات تجريبية للاختبار في بداية الملف بعد المتغيرات
-// بيانات تجريبية للاختبار
-const testStudents = [
-  {
-    uid: "test_001",
-    studentType: "نظامي",
-    school: "ثانوية عيسى حميطوش - برج بوعريريج",
-    fullName: "أحمد محمد الصالح",
-    birthDate: "2007-03-15",
-    branch: "علوم تجريبية",
-    averageGrade: "15.50",
-    mathLevel: "جيد جداً",
-    personalPhone: "0555123456",
-    guardianPhone: "0666789012",
-    location: "برج بوعريريج",
-    schedule: "يوم السبت 10:30 صباحا (علوم تجريبية)",
-    registrationDate: "2025-01-15",
-  },
-  {
-    uid: "test_002",
-    studentType: "حر",
-    school: "غير محدد",
-    fullName: "فاطمة الزهراء بن علي",
-    birthDate: "2007-07-22",
-    branch: "رياضيات",
-    averageGrade: "17.25",
-    mathLevel: "ممتاز",
-    personalPhone: "0777456789",
-    guardianPhone: "0555987654",
-    location: "برج بوعريريج",
-    schedule: "يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)",
-    registrationDate: "2025-01-16",
-  },
-  {
-    uid: "test_003",
-    studentType: "نظامي",
-    school: "ثانوية بوزراعة أحسن - رأس الوادي",
-    fullName: "خالد عبد الرحمن",
-    birthDate: "2007-11-08",
-    branch: "تقني رياضي",
-    averageGrade: "14.75",
-    mathLevel: "جيد",
-    personalPhone: "0666321654",
-    guardianPhone: "0777852963",
-    location: "رأس الوادي",
-    schedule: "يوم الجمعة صباحا الساعة 9:00",
-    registrationDate: "2025-01-17",
-  },
-]
-
-// تعريف أسماء الأفواج
 const FOUJ_NAMES = {
-  "رأس الوادي_يوم الجمعة صباحا الساعة 9:00": "فوج رأس الوادي 9:00",
-  "برج بوعريريج_يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)": "فوج البرج رياضيات+تقني 8:00",
-  "برج بوعريريج_يوم السبت 10:30 صباحا (علوم تجريبية)": "فوج البرج علمي 10:30",
-  "برج بوعريريج_يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)": "فوج البرج علمي 13:00",
-}
+  "برج بوعريريج_السبت 08:30 صباحا والثلاثاء 01:30 مساء": "فوج الرياضيات والهندسة",
+  "برج بوعريريج_السبت 10:30 صباحا والثلاثاء 03:30 مساء": "فوج العلوم التجريبية 1",
+  "برج بوعريريج_السبت 01:15 مساء والجمعة 08:30 صباحا": "فوج العلوم التجريبية 2"
+};
 
-// خيارات الأفواج للتغيير
 const FOUJ_OPTIONS = [
   {
-    key: "رأس الوادي_يوم الجمعة صباحا الساعة 9:00",
-    name: "فوج رأس الوادي 9:00",
-    location: "رأس الوادي",
-    schedule: "يوم الجمعة صباحا الساعة 9:00",
+    key: "برج بوعريريج_السبت 08:30 صباحا والثلاثاء 01:30 مساء",
+    name: "فوج الرياضيات والهندسة",
+    location: "برج بوعريريج",
+    schedule: "السبت 08:30 صباحا والثلاثاء 01:30 مساء"
   },
   {
-    key: "برج بوعريريج_يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)",
-    name: "فوج البرج رياضيات+تقني 8:00",
+    key: "برج بوعريريج_السبت 10:30 صباحا والثلاثاء 03:30 مساء",
+    name: "فوج العلوم التجريبية 1",
     location: "برج بوعريريج",
-    schedule: "يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)",
+    schedule: "السبت 10:30 صباحا والثلاثاء 03:30 مساء"
   },
   {
-    key: "برج بوعريريج_يوم السبت 10:30 صباحا (علوم تجريبية)",
-    name: "فوج البرج علمي 10:30",
+    key: "برج بوعريريج_السبت 01:15 مساء والجمعة 08:30 صباحا",
+    name: "فوج العلوم التجريبية 2",
     location: "برج بوعريريج",
-    schedule: "يوم السبت 10:30 صباحا (علوم تجريبية)",
-  },
-  {
-    key: "برج بوعريريج_يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)",
-    name: "فوج البرج علمي 13:00",
-    location: "برج بوعريريج",
-    schedule: "يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)",
-  },
-]
+    schedule: "السبت 01:15 مساء والجمعة 08:30 صباحا"
+  }
+];
 
-// دالة مولد ID فريد
+// ===== دوال مساعدة =====
 function generateStudentUID(student) {
-  if (student.firebaseId) {
-    return "fb_" + student.firebaseId
-  } else {
-    return "local_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9)
-  }
+  return student.firebaseId ? "fb_" + student.firebaseId : "local_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
 }
 
-// دالة البحث عن الطالب المُحسنة
-function findStudentByUID(uid) {
-  console.log("🔍 البحث عن الطالب بـ UID:", uid)
-
-  const student = registeredStudents.find((s) => {
-    const studentUID = s.uid || generateStudentUID(s)
-    const match =
-      studentUID === uid ||
-      s.firebaseId === uid ||
-      s.id === uid ||
-      "fb_" + (s.firebaseId || "") === uid ||
-      "local_" + (s.id || "") === uid
-
-    if (match) {
-      console.log("✅ تم العثور على الطالب:", s.fullName)
-    }
-    return match
-  })
-
-  if (!student) {
-    console.error("❌ الطالب غير موجود:", uid)
-    console.log(
-      "📋 الطلاب المتاحون:",
-      registeredStudents.map((s) => ({
-        name: s.fullName,
-        uid: s.uid,
-        id: s.id,
-        firebaseId: s.firebaseId,
-      })),
-    )
-  }
-
-  return student
+function getFoujName(location, schedule) {
+  return FOUJ_NAMES[`${location}_${schedule}`] || `فوج ${location}`;
 }
 
-// ===== دوال Firebase =====
-
-// تحديث حالة الاتصال
-function updateConnectionStatus(status) {
-  const statusElement = document.getElementById("connectionStatus")
-  const statusText = document.getElementById("statusText")
-
-  if (statusElement && statusText) {
-    statusElement.style.display = "flex"
-    statusElement.className = "connection-status " + status
-
-    switch (status) {
-      case "connected":
-        statusElement.style.background = "#27ae60"
-        statusText.textContent = "متصل"
-        break
-      case "offline":
-        statusElement.style.background = "#e74c3c"
-        statusText.textContent = "غير متصل"
-        break
-      case "connecting":
-        statusElement.style.background = "#f39c12"
-        statusText.textContent = "يتصل..."
-        break
-    }
-
-    if (status === "connected") {
-      setTimeout(() => {
-        statusElement.style.display = "none"
-      }, 5000)
-    }
-  }
+// التحقق من أن الاسم/اللقب مكتوب بالأحرف اللاتينية (الفرنسية) فقط
+function isLatinName(value) {
+  const namePattern = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
+  return namePattern.test((value || "").trim());
 }
 
-// تهيئة Firebase والتحقق من الاتصال
+// ===== Firebase =====
 function initializeFirebase() {
-  // تغيير الشرط هنا
   if (window.firebaseInitialized && window.db) {
-    isFirebaseReady = true
-    updateConnectionStatus("connected")
-    console.log("✅ Firebase جاهز للاستخدام")
-
-    loadStudentsFromFirebase().then(() => {
-      console.log("تم تحميل", registeredStudents.length, "طلاب")
-      updateAdminDisplay()
-    })
-
-    const dbNotice = document.getElementById("dbStatusNotice")
-    if (dbNotice) {
-      dbNotice.style.display = "none"
-    }
-
-    return true
+    isFirebaseReady = true;
+    loadStudentsFromFirebase();
   } else {
-    isFirebaseReady = false
-    updateConnectionStatus("offline")
-    console.warn("⚠️ Firebase غير متاح - سيتم استخدام التخزين المحلي")
-
-    // تحميل البيانات المحلية أو إضافة البيانات التجريبية
-    const localData = JSON.parse(localStorage.getItem("registeredStudents")) || []
-
-    // إذا لم توجد بيانات محلية، أضف البيانات التجريبية
-    if (localData.length === 0) {
-      registeredStudents = [...testStudents]
-      localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
-      console.log("✅ تم إضافة البيانات التجريبية:", registeredStudents.length, "طلاب")
-    } else {
-      registeredStudents = localData
-    }
-
-    // تعيين UID للطلاب المحليين
-    registeredStudents.forEach((student) => {
-      if (!student.uid) {
-        student.uid = generateStudentUID(student)
-      }
-    })
-    updateAdminDisplay()
-
-    const dbNotice = document.getElementById("dbStatusNotice")
-    if (dbNotice) {
-      dbNotice.style.display = "flex"
-    }
-
-    return false
+    isFirebaseReady = false;
+    registeredStudents = JSON.parse(localStorage.getItem("registeredStudents")) || [];
   }
+  setTimeout(() => updateLocationOptions(document.querySelector('input[name="location"]:checked')), 500);
 }
 
-// دالة مساعدة لتحديث عرض لوحة التحكم
-function updateAdminDisplay() {
-  if (document.getElementById("adminPanel") && document.getElementById("adminPanel").classList.contains("active")) {
-    displayTotalCount()
-    displayFoujStats()
-    displayStudentsTable()
-    updateFoujFilters()
-  }
-}
-
-// حفظ طالب جديد في Firebase
 async function saveStudentToFirebase(studentData) {
   if (!isFirebaseReady) {
-    console.log("📱 Firebase غير متاح - حفظ محلي")
-    studentData.uid = generateStudentUID(studentData)
-    studentData.registrationDate = new Date().toLocaleDateString("ar-DZ")
-    registeredStudents.unshift(studentData)
-    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
-    return true
+    studentData.uid = generateStudentUID(studentData);
+    studentData.registrationDate = new Date().toLocaleDateString("ar-DZ");
+    registeredStudents.unshift(studentData);
+    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents));
+    return true;
   }
-
   try {
-    updateConnectionStatus("connecting")
-
     const docRef = await window.db.collection("students").add({
       ...studentData,
       timestamp: window.firebase.firestore.FieldValue.serverTimestamp(),
       createdAt: new Date().toISOString(),
-    })
-
-    studentData.firebaseId = docRef.id
-    studentData.uid = generateStudentUID(studentData)
-    studentData.registrationDate = new Date().toLocaleDateString("ar-DZ")
-    registeredStudents.unshift(studentData)
-    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
-
-    updateConnectionStatus("connected")
-    console.log("✅ تم حفظ الطالب في Firebase:", docRef.id)
-    return true
+    });
+    studentData.firebaseId = docRef.id;
+    studentData.uid = generateStudentUID(studentData);
+    studentData.registrationDate = new Date().toLocaleDateString("ar-DZ");
+    registeredStudents.unshift(studentData);
+    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents));
+    return true;
   } catch (error) {
-    console.error("❌ خطأ في حفظ البيانات:", error)
-    updateConnectionStatus("offline")
-
-    studentData.uid = generateStudentUID(studentData)
-    studentData.registrationDate = new Date().toLocaleDateString("ar-DZ")
-    registeredStudents.unshift(studentData)
-    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
-    return true
+    console.error("خطأ في حفظ البيانات:", error);
+    return false;
   }
 }
 
-// تحميل البيانات من Firebase
 async function loadStudentsFromFirebase() {
-  if (!isFirebaseReady) {
-    console.log("📱 تحميل البيانات المحلية")
-    registeredStudents = JSON.parse(localStorage.getItem("registeredStudents")) || []
-    // تعيين UID للطلاب المحليين
-    registeredStudents.forEach((student) => {
-      if (!student.uid) {
-        student.uid = generateStudentUID(student)
-      }
-    })
-    return registeredStudents
-  }
-
+  if (!isFirebaseReady) return;
   try {
-    showLoadingIndicator(true)
-    updateConnectionStatus("connecting")
-
-    const snapshot = await window.db.collection("students").orderBy("timestamp", "desc").get()
-
-    const students = []
-
+    const snapshot = await window.db.collection("students").orderBy("timestamp", "desc").get();
+    const students = [];
     snapshot.forEach((doc) => {
-      const data = doc.data()
-      const student = {
-        firebaseId: doc.id,
-        ...data,
-      }
-      student.uid = generateStudentUID(student)
-      students.push(student)
-    })
-
-    registeredStudents = students
-    localStorage.setItem("registeredStudents", JSON.stringify(students))
-
-    updateConnectionStatus("connected")
-    console.log(`✅ تم تحميل ${students.length} طالب من Firebase`)
-
-    return students
+      students.push({ firebaseId: doc.id, ...doc.data(), uid: generateStudentUID({firebaseId: doc.id}) });
+    });
+    registeredStudents = students;
+    localStorage.setItem("registeredStudents", JSON.stringify(students));
   } catch (error) {
-    console.error("❌ خطأ في تحميل البيانات:", error)
-    updateConnectionStatus("offline")
-
-    const localData = JSON.parse(localStorage.getItem("registeredStudents")) || []
-    localData.forEach((student) => {
-      if (!student.uid) {
-        student.uid = generateStudentUID(student)
-      }
-    })
-    registeredStudents = localData
-    return localData
-  } finally {
-    showLoadingIndicator(false)
+    console.error(error);
   }
 }
 
-// إظهار/إخفاء مؤشر التحميل
-function showLoadingIndicator(show) {
-  const indicator = document.getElementById("loadingIndicator")
-  if (indicator) {
-    indicator.style.display = show ? "block" : "none"
-  }
-}
-
-// دوال إدارة الأفواج
-function getFoujName(location, schedule) {
-  const key = `${location}_${schedule}`
-  return FOUJ_NAMES[key] || `فوج ${location}`
-}
-
-function getFoujKey(location, schedule) {
-  return `${location}_${schedule}`
-}
-
-function checkFoujCapacity(location, schedule) {
-  const foujStudents = registeredStudents.filter((s) => s.location === location && s.schedule === schedule)
-  return foujStudents.length
-}
-
-// عرض لافتة محسنة
-function showAlert(message, type = "success", duration = 5000) {
-  console.log(`🚨 عرض لافتة: ${type} - ${message}`)
-
-  // إزالة أي لافتة موجودة
-  const existingAlerts = document.querySelectorAll(".custom-alert")
-  existingAlerts.forEach((alert) => alert.remove())
-
-  const alertDiv = document.createElement("div")
-  alertDiv.className = "custom-alert"
-  alertDiv.style.position = "fixed"
-  alertDiv.style.top = "0"
-  alertDiv.style.left = "0"
-  alertDiv.style.width = "100%"
-  alertDiv.style.padding = "20px"
-  alertDiv.style.fontSize = "1.2rem"
-  alertDiv.style.fontWeight = "700"
-  alertDiv.style.textAlign = "center"
-  alertDiv.style.zIndex = "99999"
-  alertDiv.style.display = "flex"
-  alertDiv.style.justifyContent = "center"
-  alertDiv.style.alignItems = "center"
-  alertDiv.style.gap = "15px"
-  alertDiv.style.color = "white"
-  alertDiv.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.3)"
-  alertDiv.style.animation = "slideInFromTop 0.5s ease"
-  alertDiv.style.transform = "translateY(0)"
-  alertDiv.style.transition = "all 0.3s ease"
-
-  // تحديد اللون والأيقونة حسب النوع
-  if (type === "success") {
-    alertDiv.style.background = "linear-gradient(135deg, #27ae60 0%, #2ecc71 100%)"
-    alertDiv.innerHTML = `<i class="fas fa-check-circle" style="font-size: 1.5rem;"></i> <span>${message}</span>`
-  } else if (type === "warning") {
-    alertDiv.style.background = "linear-gradient(135deg, #f39c12 0%, #e67e22 100%)"
-    alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle" style="font-size: 1.5rem;"></i> <span>${message}</span>`
-  } else if (type === "danger") {
-    alertDiv.style.background = "linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)"
-    alertDiv.innerHTML = `<i class="fas fa-times-circle" style="font-size: 1.5rem;"></i> <span>${message}</span>`
-  }
-
-  // إضافة اللافتة إلى الصفحة
-  document.body.appendChild(alertDiv)
-  console.log("✅ تم إضافة اللافتة إلى الصفحة")
-
-  // إخفاء اللافتة بعد المدة المحددة
-  setTimeout(() => {
-    if (alertDiv && alertDiv.parentNode) {
-      alertDiv.style.transform = "translateY(-100%)"
-      alertDiv.style.opacity = "0"
-      setTimeout(() => {
-        if (alertDiv && alertDiv.parentNode) {
-          alertDiv.remove()
-          console.log("🗑️ تم إزالة اللافتة")
-        }
-      }, 300)
-    }
-  }, duration)
-
-  return alertDiv
-}
-
-// ===== دوال واجهة المستخدم =====
-
-function showConsent() {
-  document.getElementById("consentModal").style.display = "flex"
-}
-
-function closeConsent() {
-  document.getElementById("consentModal").style.display = "none"
-}
-
-function goToRegistration() {
-  closeConsent()
-  showPage("registrationPage")
-}
-
-function goToHome() {
-  showPage("homePage")
-}
-
+// ===== التنقل والنوافذ =====
 function showPage(pageId) {
-  console.log("تغيير الصفحة إلى:", pageId)
   document.querySelectorAll(".page").forEach((page) => {
-    page.classList.remove("active")
-    page.style.display = "none"
-  })
-
-  const targetPage = document.getElementById(pageId)
+    page.classList.remove("active");
+    page.style.display = "none";
+  });
+  const targetPage = document.getElementById(pageId);
   if (targetPage) {
-    targetPage.classList.add("active")
-    targetPage.style.display = "block"
-    console.log("تم عرض الصفحة:", pageId)
-
-    if (pageId === "adminPanel") {
-      updateAdminDisplay()
+    targetPage.classList.add("active");
+    targetPage.style.display = "block";
+    if (pageId === "adminPanel" && typeof updateAdminDisplay === "function") {
+      updateAdminDisplay();
     }
-  } else {
-    console.error("الصفحة غير موجودة:", pageId)
   }
 }
 
-// فحص سعة الفوج وإظهار إشعار إذا لزم الأمر
-function checkAndShowFoujNotice() {
-  const selectedLocation = document.querySelector('input[name="location"]:checked')
-  const selectedSchedule = document.querySelector('input[name="schedule"]:checked')
-  const notice = document.getElementById("foujFullNotice")
-  const submitBtn = document.querySelector(".submit-btn")
+function showConsent() { document.getElementById("consentModal").style.display = "flex"; }
+function closeConsent() { document.getElementById("consentModal").style.display = "none"; }
+function goToRegistration() { closeConsent(); showPage("registrationPage"); }
+function goToHome() { showPage("homePage"); }
 
-  if (!selectedLocation || !selectedSchedule) {
-    if (notice) notice.style.display = "none"
-    if (submitBtn) {
-      submitBtn.disabled = true
-      submitBtn.style.opacity = "0.5"
-    }
-    return false
-  }
-
-  const currentCount = checkFoujCapacity(selectedLocation.value, selectedSchedule.value)
-  const foujName = getFoujName(selectedLocation.value, selectedSchedule.value)
-
-  if (currentCount >= MAX_STUDENTS_PER_FOUJ) {
-    if (notice) {
-      notice.style.display = "flex"
-      notice.innerHTML = `
-                <i class="fas fa-exclamation-triangle"></i>
-                <span>تنبيه: ${foujName} مكتمل (${MAX_STUDENTS_PER_FOUJ} طالب). لا يمكن التسجيل في هذا الفوج.</span>
-            `
-    }
-    if (submitBtn) {
-      submitBtn.disabled = true
-      submitBtn.style.opacity = "0.5"
-    }
-    return false
-  } else {
-    if (notice) notice.style.display = "none"
-    if (submitBtn) {
-      submitBtn.disabled = false
-      submitBtn.style.opacity = "1"
-    }
-    return true
-  }
-}
-
-// تبديل عرض حقل الثانوية
 function toggleSchoolField(radio) {
-  const schoolField = document.getElementById("schoolField")
-  const schoolSelect = document.getElementById("school")
-  if (radio.value === "نظامي") {
-    schoolField.style.display = "block"
-    schoolSelect.required = true
-  } else {
-    schoolField.style.display = "none"
-    schoolSelect.required = false
-    schoolSelect.value = ""
+  const schoolField = document.getElementById("schoolField");
+  const schoolInput = document.getElementById("school");
+  const isRegular = radio.value === "نظامي";
+  schoolField.style.display = isRegular ? "block" : "none";
+  if (schoolInput) {
+    if (isRegular) {
+      schoolInput.setAttribute("required", "required");
+    } else {
+      schoolInput.removeAttribute("required");
+      schoolInput.value = "";
+    }
   }
 }
 
-// تحديث خيارات التوقيت حسب المكان والشعبة
 function updateLocationOptions(radio) {
-  const scheduleOptions = document.getElementById("scheduleOptions")
-  const scheduleChoices = document.getElementById("scheduleChoices")
-  const mapContainer = document.getElementById("mapContainer")
-  const mapFrame = document.getElementById("mapFrame")
-
-  if (!radio.checked) {
-    scheduleOptions.style.display = "none"
-    mapContainer.style.display = "none"
-    scheduleChoices.innerHTML = ""
-    return
-  }
-
-  scheduleOptions.style.display = "block"
-  mapContainer.style.display = "block"
-
-  if (radio.value === "رأس الوادي") {
-    scheduleChoices.innerHTML = `
-            <label class="radio-label">
-                <input required type="radio" name="schedule" value="يوم الجمعة صباحا الساعة 9:00" onchange="checkAndShowFoujNotice()">
-                <span class="radio-icon">🕘</span>
-                يوم الجمعة صباحا الساعة 9:00
-            </label>
-        `
-    mapFrame.innerHTML = `
-            <iframe src="https://www.google.com/maps/embed?pb=!1m10!1m8!1m3!1d267.5754578298012!2d5.04348127440132!3d35.95112153179717!3m2!1i1024!2i768!4f13.1!5e1!3m2!1sen!2sdz!4v1754072042503!5m2!1sen!2sdz" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-        `
-  } else if (radio.value === "برج بوعريريج") {
-    updateScheduleOptions()
-    mapFrame.innerHTML = `
-            <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d267.1373246941547!2d4.779120692612777!3d36.080281128944634!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x128cbda0b49fb9f5%3A0x3b9a2f868e369a7f!2sProf%20Math.%20Belayadi%20Akram!5e1!3m2!1sen!2sdz!4v1754072246845!5m2!1sen!2sdz" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-        `
-  }
+  if (!radio || !radio.checked) return;
+  document.getElementById("scheduleOptions").style.display = "block";
+  document.getElementById("mapContainer").style.display = "block";
+  updateScheduleOptions();
 }
 
-// تحديث خيارات التوقيت حسب الشعبة لبرج بوعريريج
 function updateScheduleOptions() {
-  const selectedLocation = document.querySelector('input[name="location"]:checked')
-  const selectedBranch = document.querySelector('input[name="branch"]:checked')
-  const scheduleChoices = document.getElementById("scheduleChoices")
+  const selectedBranch = document.querySelector('input[name="branch"]:checked');
+  const scheduleChoices = document.getElementById("scheduleChoices");
+  
+  if (!selectedBranch) { scheduleChoices.innerHTML = ""; return; }
 
-  if (!selectedLocation || selectedLocation.value !== "برج بوعريريج" || !selectedBranch) {
-    scheduleChoices.innerHTML = ""
-    return
-  }
-
-  let scheduleHTML = ""
-  if (selectedBranch.value === "رياضيات" || selectedBranch.value === "تقني رياضي") {
+  let scheduleHTML = "";
+  if (selectedBranch.value === "رياضيات" || selectedBranch.value === "الهندسة") {
     scheduleHTML = `
-            <label class="radio-label">
-                <input required type="radio" name="schedule" value="يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)" onchange="checkAndShowFoujNotice()">
-                <span class="radio-icon">🕗</span>
-                يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)
-            </label>
-        `
+      <label class="radio-label">
+          <input required type="radio" name="schedule" value="السبت 08:30 صباحا والثلاثاء 01:30 مساء">
+          <span class="radio-icon">🕗</span> السبت 08:30 صباحا والثلاثاء 01:30 مساء (ماتيلام + هندسة)
+      </label>`;
   } else if (selectedBranch.value === "علوم تجريبية") {
     scheduleHTML = `
-            <label class="radio-label">
-                <input required type="radio" name="schedule" value="يوم السبت 10:30 صباحا (علوم تجريبية)" onchange="checkAndShowFoujNotice()">
-                <span class="radio-icon">🕥</span>
-                يوم السبت 10:30 صباحا (علوم تجريبية)
-            </label>
-            <label class="radio-label">
-                <input required type="radio" name="schedule" value="يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)" onchange="checkAndShowFoujNotice()">
-                <span class="radio-icon">🕐</span>
-                يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)
-            </label>
-        `
+      <label class="radio-label">
+          <input required type="radio" name="schedule" value="السبت 10:30 صباحا والثلاثاء 03:30 مساء">
+          <span class="radio-icon">🕥</span> الفوج الأول: السبت 10:30ص والثلاثاء 03:30م
+      </label>
+      <label class="radio-label">
+          <input required type="radio" name="schedule" value="السبت 01:15 مساء والجمعة 08:30 صباحا">
+          <span class="radio-icon">🕐</span> الفوج الثاني: السبت 01:15م والجمعة 08:30ص
+      </label>`;
   }
-  scheduleChoices.innerHTML = scheduleHTML
+  scheduleChoices.innerHTML = scheduleHTML;
 }
 
-// ===== دوال تأكيد وتغيير الفوج =====
+// ===== التسجيل والتفاعلات =====
+document.addEventListener("DOMContentLoaded", () => {
+  initializeFirebase();
+
+  // إرسال نموذج التسجيل
+  const form = document.getElementById("registrationForm");
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+
+      // التحقق من أن الاسم واللقب مكتوبان بالأحرف اللاتينية (الفرنسية)
+      const firstNameVal = (formData.get("firstName") || "").trim();
+      const lastNameVal = (formData.get("lastName") || "").trim();
+      if (!isLatinName(firstNameVal) || !isLatinName(lastNameVal)) {
+        alert("⚠️ يرجى كتابة الاسم واللقب بالأحرف اللاتينية (الفرنسية) فقط، وليس بالعربية.");
+        return;
+      }
+
+      // التحقق من اختيار ثانوية صحيحة من القائمة (إلزامي للطلبة النظاميين فقط)
+      const studentTypeVal = formData.get("studentType");
+      if (studentTypeVal === "نظامي") {
+        const schoolVal = (formData.get("school") || "").trim();
+        const schoolOptions = Array.from(document.querySelectorAll('#schoolsList option')).map(o => o.value);
+        if (!schoolVal || !schoolOptions.includes(schoolVal)) {
+          alert("⚠️ يرجى اختيار الثانوية من القائمة المقترحة (اكتب اسمها للبحث ثم اختَرها).");
+          return;
+        }
+      }
+      
+      pendingStudentData = {
+        studentType: formData.get("studentType"),
+        school: formData.get("school") || "غير محدد",
+        firstName: formData.get("firstName"),
+        lastName: formData.get("lastName"),
+        fullName: formData.get("firstName") + " " + formData.get("lastName"),
+        birthDate: formData.get("birthDate"),
+        branch: formData.get("branch"),
+        mathLevel: formData.get("mathLevel"),
+        personalPhone: formData.get("personalPhone"),
+        howDidYouHear: formData.get("howDidYouHear"),
+        location: "برج بوعريريج",
+        schedule: formData.get("schedule"),
+      };
+
+      const foujConfirmModal = document.getElementById("foujConfirmModal");
+      const selectedFoujName = document.getElementById("selectedFoujName");
+      if(foujConfirmModal && selectedFoujName) {
+          selectedFoujName.textContent = getFoujName(pendingStudentData.location, pendingStudentData.schedule);
+          foujConfirmModal.style.display = "flex";
+      }
+    });
+  }
+  
+  // تغيير الفوج من طرف التلميذ
+  const changeFoujForm = document.getElementById("changeFoujForm");
+  if (changeFoujForm) {
+      changeFoujForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const chosenFoujKey = document.querySelector('input[name="chosenFouj"]:checked');
+          if (!chosenFoujKey) {
+              alert("الرجاء اختيار فوج جديد.");
+              return;
+          }
+          const fouj = FOUJ_OPTIONS.find((f) => f.key === chosenFoujKey.value);
+          if (fouj) {
+              pendingStudentData.location = fouj.location;
+              pendingStudentData.schedule = fouj.schedule;
+              document.getElementById("foujChangeModal").style.display = "none";
+              finishStudentRegistration(pendingStudentData);
+          }
+      });
+  }
+
+  // تغيير الفوج من طرف الإدارة
+  const adminChangeForm = document.getElementById("adminChangeFoujForm");
+  if(adminChangeForm) {
+      adminChangeForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if(!studentToChangeFouj) return;
+          
+          const chosenFoujKey = document.querySelector('input[name="adminChosenFouj"]:checked');
+          if (!chosenFoujKey) {
+              alert("الرجاء اختيار فوج جديد.");
+              return;
+          }
+          
+          const newFouj = FOUJ_OPTIONS.find((f) => f.key === chosenFoujKey.value);
+          if (newFouj) {
+              const studentIndex = registeredStudents.findIndex(s => s.uid === studentToChangeFouj);
+              if(studentIndex !== -1) {
+                  registeredStudents[studentIndex].location = newFouj.location;
+                  registeredStudents[studentIndex].schedule = newFouj.schedule;
+                  
+                  localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents));
+                  
+                  if(isFirebaseReady && registeredStudents[studentIndex].firebaseId) {
+                      try {
+                          await window.db.collection("students").doc(registeredStudents[studentIndex].firebaseId).update({
+                              location: newFouj.location,
+                              schedule: newFouj.schedule
+                          });
+                      } catch (err) {
+                          console.error("خطأ في تحديث قاعدة البيانات", err);
+                      }
+                  }
+                  closeAdminChangeFoujModal();
+                  updateAdminDisplay();
+              }
+          }
+      });
+  }
+});
 
 function confirmFouj() {
-  document.getElementById("foujConfirmModal").style.display = "none"
-  finishStudentRegistration(pendingStudentData)
-}
-
-function showFoujChangeModal() {
-  document.getElementById("foujConfirmModal").style.display = "none"
-  populateFoujChoices()
-  document.getElementById("foujChangeModal").style.display = "flex"
-}
-
-function populateFoujChoices() {
-  const foujChoices = document.getElementById("foujChoicesList")
-  foujChoices.innerHTML = ""
-  FOUJ_OPTIONS.forEach((opt) => {
-    foujChoices.innerHTML += `
-            <label class="radio-label">
-                <input required type="radio" name="chosenFouj" value="${opt.key}">
-                ${opt.name} (${opt.schedule})
-            </label>
-        `
-  })
+  document.getElementById("foujConfirmModal").style.display = "none";
+  finishStudentRegistration(pendingStudentData);
 }
 
 async function finishStudentRegistration(studentData) {
-  showLoadingIndicator(true)
-
-  const success = await saveStudentToFirebase(studentData)
-
-  showLoadingIndicator(false)
+  document.getElementById("loadingIndicator").style.display = "block";
+  const success = await saveStudentToFirebase(studentData);
+  document.getElementById("loadingIndicator").style.display = "none";
 
   if (success) {
-    showPage("confirmationPage")
-    showAlert("✅ تم التسجيل بنجاح!", "success")
-
-    const form = document.getElementById("registrationForm")
-    if (form) form.reset()
-
-    const schoolField = document.getElementById("schoolField")
-    if (schoolField) schoolField.style.display = "none"
-
-    const scheduleOptions = document.getElementById("scheduleOptions")
-    const mapContainer = document.getElementById("mapContainer")
-    if (scheduleOptions) scheduleOptions.style.display = "none"
-    if (mapContainer) mapContainer.style.display = "none"
-
-    updateAdminDisplay()
+    const username = `${studentData.firstName.trim()}.${studentData.lastName.trim()}`;
+    const qrData = encodeURIComponent(username);
+    
+    const qrImg = document.getElementById("qrCodeImg");
+    qrImg.crossOrigin = "anonymous";
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}`;
+    
+    document.getElementById("cardFirstName").textContent = studentData.firstName;
+    document.getElementById("cardLastName").textContent = studentData.lastName;
+    document.getElementById("cardBranch").textContent = studentData.branch;
+    document.getElementById("cardFouj").textContent = getFoujName(studentData.location, studentData.schedule);
+    
+    showPage("confirmationPage");
+    document.getElementById("registrationForm").reset();
   } else {
-    showAlert("❌ حدث خطأ أثناء التسجيل. حاول مرة أخرى.", "danger")
+    alert("حدث خطأ أثناء التسجيل.");
   }
 }
 
-// ===== معالجة إرسال النموذج =====
+window.downloadCard = function() {
+    const card = document.getElementById("studentCard");
+    const qrImg = document.getElementById("qrCodeImg");
 
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("registrationForm")
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault()
-
-      const formData = new FormData(this)
-
-      const studentData = {
-        studentType: formData.get("studentType"),
-        school: formData.get("school") || "غير محدد",
-        fullName: formData.get("fullName"),
-        birthDate: formData.get("birthDate"),
-        branch: formData.get("branch"),
-        averageGrade: formData.get("averageGrade"),
-        mathLevel: formData.get("mathLevel"),
-        personalPhone: formData.get("personalPhone"),
-        guardianPhone: formData.get("guardianPhone"),
-        location: formData.get("location"),
-        schedule: formData.get("schedule"),
-      }
-
-      if (!studentData.studentType || !studentData.location || !studentData.schedule) {
-        showAlert("⚠️ يرجى ملء جميع الحقول المطلوبة.", "warning")
-        return
-      }
-
-      if (!checkAndShowFoujNotice()) {
-        showAlert("❌ عذراً، هذا الفوج مكتمل. يرجى اختيار فوج آخر.", "danger")
-        return
-      }
-
-      pendingStudentData = studentData
-
-      const foujName = getFoujName(studentData.location, studentData.schedule)
-      document.getElementById("selectedFoujName").textContent = foujName
-
-      document.getElementById("foujConfirmModal").style.display = "flex"
-    })
-  }
-
-  const changeFoujForm = document.getElementById("changeFoujForm")
-  if (changeFoujForm) {
-    changeFoujForm.addEventListener("submit", (e) => {
-      e.preventDefault()
-      const chosenFoujKey = document.querySelector('input[name="chosenFouj"]:checked')
-      if (!chosenFoujKey) {
-        showAlert("⚠️ الرجاء اختيار فوج جديد.", "warning")
-        return
-      }
-
-      const fouj = FOUJ_OPTIONS.find((f) => f.key === chosenFoujKey.value)
-      if (fouj) {
-        pendingStudentData.location = fouj.location
-        pendingStudentData.schedule = fouj.schedule
-
-        document.getElementById("foujChangeModal").style.display = "none"
-        finishStudentRegistration(pendingStudentData)
-      }
-    })
-  }
-
-  // معالج نموذج التعديل
-  const editForm = document.getElementById("editStudentForm")
-  if (editForm) {
-    editForm.addEventListener("submit", saveEditedStudent)
-  }
-})
-
-// ===== دوال لوحة التحكم =====
-
-function displayFoujStats() {
-  const container = document.getElementById("foujStatsContainer")
-  if (!container) return
-
-  console.log("عرض إحصائيات الأفواج - عدد الطلاب:", registeredStudents.length)
-
-  const foujStats = {}
-  FOUJ_OPTIONS.forEach((fouj) => {
-    const students = registeredStudents.filter((s) => s.location === fouj.location && s.schedule === fouj.schedule)
-    foujStats[fouj.key] = {
-      name: fouj.name,
-      count: students.length,
-      capacity: MAX_STUDENTS_PER_FOUJ,
-      students: students,
+    if (!window.html2canvas) {
+        alert("يرجى الانتظار، جاري تحميل المكتبة أو أنها غير متوفرة.");
+        return;
     }
-  })
 
-  container.innerHTML = ""
-  Object.values(foujStats).forEach((fouj) => {
-    const percentage = (fouj.count / fouj.capacity) * 100
-    const isFull = fouj.count >= fouj.capacity
-    const isEmpty = fouj.count === 0
+    function captureCard() {
+        html2canvas(card, { useCORS: true, allowTaint: false, scale: 2 }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `بطاقة_الطالب_${pendingStudentData.firstName}_${pendingStudentData.lastName}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }).catch(err => {
+            console.error("خطأ أثناء إنشاء صورة البطاقة:", err);
+            alert("حدث خطأ أثناء تحميل البطاقة، حاول مرة أخرى.");
+        });
+    }
 
-    let cardClass = "stat-card clickable"
-    if (isEmpty) cardClass += " empty"
-    if (currentSelectedFouj === fouj.name) cardClass += " active"
-
-    const cardHtml = `
-            <div class="${cardClass}" onclick="filterByFoujName('${fouj.name}')">
-                <h4>${fouj.name}</h4>
-                <div class="stat-number">${fouj.count}/${fouj.capacity}</div>
-                <div class="capacity-bar">
-                    <div class="capacity-fill ${isFull ? "capacity-full" : ""}" style="width: ${percentage}%"></div>
-                </div>
-            </div>
-        `
-    container.innerHTML += cardHtml
-  })
+    // التأكد أن صورة الـ QR اكتملت تحميلها قبل التصوير، وإلا ستظهر البطاقة بدونها
+    if (qrImg && !qrImg.complete) {
+        qrImg.onload = captureCard;
+        qrImg.onerror = () => {
+            console.error("تعذر تحميل صورة QR");
+            captureCard();
+        };
+    } else {
+        captureCard();
+    }
 }
 
-// عرض مربع العدد الإجمالي
+// ===== دوال لوحة التحكم الإدارية =====
+function showPasswordModal() {
+    const modal = document.getElementById("passwordModal");
+    if (modal) modal.style.display = "flex";
+}
+
+function cancelPassword() {
+    const modal = document.getElementById("passwordModal");
+    if (modal) modal.style.display = "none";
+}
+
+function confirmPassword() {
+    const passwordInput = document.getElementById("adminPassword");
+    const password = passwordInput ? passwordInput.value : "";
+    
+    if (password === "admin123") {
+        cancelPassword();
+        showPage("adminPanel");
+    } else if (password.trim() === "") {
+        alert("يرجى إدخال كلمة المرور");
+    } else {
+        alert("كلمة مرور خاطئة");
+        if (passwordInput) passwordInput.value = "";
+    }
+}
+
+function updateAdminDisplay() {
+  if (document.getElementById("adminPanel") && document.getElementById("adminPanel").classList.contains("active")) {
+    displayTotalCount();
+    displayFoujStats();
+    displayStudentsTable();
+  }
+}
+
 function displayTotalCount() {
-  const container = document.getElementById("totalCountContainer")
-  if (!container) return
+  const container = document.getElementById("totalCountContainer");
+  if (!container) return;
 
-  const totalStudents = registeredStudents.length
-
-  // حساب التوزيع حسب المكان
-  const borgCount = registeredStudents.filter((s) => s.location === "برج بوعريريج").length
-  const rasCount = registeredStudents.filter((s) => s.location === "رأس الوادي").length
-
-  // حساب التوزيع حسب الشعبة
-  const scienceCount = registeredStudents.filter((s) => s.branch === "علوم تجريبية").length
-  const mathCount = registeredStudents.filter((s) => s.branch === "رياضيات").length
-  const techCount = registeredStudents.filter((s) => s.branch === "تقني رياضي").length
+  const totalStudents = registeredStudents.length;
+  const scienceCount = registeredStudents.filter((s) => s.branch === "علوم تجريبية").length;
+  const mathCount = registeredStudents.filter((s) => s.branch === "رياضيات").length;
+  const engCount = registeredStudents.filter((s) => s.branch === "الهندسة").length;
 
   container.innerHTML = `
     <div class="total-count-box">
@@ -776,831 +398,221 @@ function displayTotalCount() {
           <span>${totalStudents}</span>
         </div>
         <div class="total-count-label">إجمالي الطلاب المسجلين</div>
-        
         <div class="total-count-details">
-          <div class="count-detail">
-            <div class="count-detail-number">${borgCount}</div>
-            <div class="count-detail-label">برج بوعريريج</div>
-          </div>
-          <div class="count-detail">
-            <div class="count-detail-number">${rasCount}</div>
-            <div class="count-detail-label">رأس الوادي</div>
-          </div>
-          <div class="count-detail">
-            <div class="count-detail-number">${scienceCount}</div>
-            <div class="count-detail-label">علوم تجريبية</div>
-          </div>
-          <div class="count-detail">
-            <div class="count-detail-number">${mathCount + techCount}</div>
-            <div class="count-detail-label">رياضيات + تقني</div>
-          </div>
+          <div class="count-detail"><div class="count-detail-number">${scienceCount}</div><div class="count-detail-label">علوم تجريبية</div></div>
+          <div class="count-detail"><div class="count-detail-number">${mathCount}</div><div class="count-detail-label">رياضيات</div></div>
+          <div class="count-detail"><div class="count-detail-number">${engCount}</div><div class="count-detail-label">الهندسة</div></div>
         </div>
       </div>
     </div>
-  `
+  `;
+}
+
+function displayFoujStats() {
+  const container = document.getElementById("foujStatsContainer");
+  if (!container) return;
+
+  const foujStats = {};
+  Object.keys(FOUJ_NAMES).forEach((key) => {
+    const foujName = FOUJ_NAMES[key];
+    const [location, schedule] = key.split('_');
+    const students = registeredStudents.filter((s) => s.location === location && s.schedule === schedule);
+    foujStats[key] = { name: foujName, count: students.length, capacity: MAX_STUDENTS_PER_FOUJ, students: students };
+  });
+
+  container.innerHTML = "";
+  Object.values(foujStats).forEach((fouj) => {
+    const percentage = (fouj.count / fouj.capacity) * 100;
+    const isFull = fouj.count >= fouj.capacity;
+    const isEmpty = fouj.count === 0;
+    let cardClass = "stat-card";
+    if (isEmpty) cardClass += " empty";
+
+    container.innerHTML += `
+        <div class="${cardClass}">
+            <h4>${fouj.name}</h4>
+            <div class="stat-number">${fouj.count}/${fouj.capacity}</div>
+            <div class="capacity-bar">
+                <div class="capacity-fill ${isFull ? "capacity-full" : ""}" style="width: ${percentage}%"></div>
+            </div>
+        </div>
+    `;
+  });
 }
 
 function displayStudentsTable(filteredStudents = null) {
-  const tableBody = document.getElementById("studentsTableBody")
-  if (!tableBody) return
+  const tableBody = document.getElementById("studentsTableBody");
+  if (!tableBody) return;
 
-  const studentsToShow = filteredStudents || registeredStudents
-  console.log("عرض جدول الطلاب - عدد الطلاب:", studentsToShow.length)
+  const studentsToShow = filteredStudents || registeredStudents;
 
   if (studentsToShow.length === 0) {
-    tableBody.innerHTML = `
-            <tr>
-                <td colspan="14" style="text-align: center; padding: 40px; color: #666;">
-                    <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>
-                    لا توجد تسجيلات ${currentSelectedFouj ? `في ${currentSelectedFouj}` : "حتى الآن"}
-                </td>
-            </tr>
-        `
-    return
+    tableBody.innerHTML = `<tr><td colspan="12" style="text-align: center; padding: 40px; color: #666;"><i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>لا توجد تسجيلات حتى الآن</td></tr>`;
+    return;
   }
 
-  tableBody.innerHTML = ""
+  tableBody.innerHTML = "";
   studentsToShow.forEach((student, index) => {
-    const foujName = getFoujName(student.location, student.schedule)
-    const registrationDate =
-      student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString("ar-DZ")
-
-    // تأكد من وجود UID للطالب
-    if (!student.uid) {
-      student.uid = generateStudentUID(student)
-    }
-
+    const foujName = getFoujName(student.location, student.schedule);
+    const registrationDate = student.registrationDate || new Date().toLocaleDateString("ar-DZ");
     const row = `
             <tr>
                 <td>${index + 1}</td>
                 <td><span class="fouj-badge">${foujName}</span></td>
-                <td><strong>${student.fullName}</strong></td>
-                <td>${student.studentType}</td>
-                <td>${student.school || "غير محدد"}</td>
-                <td>${student.branch}</td>
-                <td>${student.averageGrade}</td>
-                <td>${student.mathLevel}</td>
-                <td>${student.personalPhone}</td>
-                <td>${student.guardianPhone}</td>
-                <td>${student.location}</td>
-                <td>${student.schedule.length > 30 ? student.schedule.substring(0, 30) + "..." : student.schedule}</td>
+                <td><strong>${student.firstName || ""}</strong></td>
+                <td><strong>${student.lastName || ""}</strong></td>
+                <td>${student.studentType || ""}</td>
+                <td>${student.branch || ""}</td>
+                <td>${student.mathLevel || ""}</td>
+                <td>${student.personalPhone || ""}</td>
+                <td>${student.howDidYouHear || "غير محدد"}</td>
+                <td title="${student.schedule}">${(student.schedule || "").substring(0, 20)}...</td>
                 <td>${registrationDate}</td>
                 <td>
                     <div class="action-buttons">
-                        <button class="btn-edit" onclick="editStudent('${student.uid}')">
-                            <i class="fas fa-edit"></i> تعديل
+                        <button class="btn-edit" onclick="openAdminChangeFoujModal('${student.uid}', '${student.firstName} ${student.lastName}')" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">
+                            <i class="fas fa-exchange-alt"></i> نقل
                         </button>
-                        <button class="btn-delete" onclick="confirmDeleteStudent('${student.uid}', '${student.fullName.replace(/'/g, "\\'")}')">
+                        <button class="btn-delete" onclick="confirmDeleteStudent('${student.uid}', '${student.firstName} ${student.lastName}')">
                             <i class="fas fa-trash"></i> حذف
                         </button>
                     </div>
                 </td>
             </tr>
-        `
-    tableBody.innerHTML += row
-  })
-}
-
-function filterByFoujName(foujName) {
-  console.log("فلترة بالفوج:", foujName)
-
-  document.querySelectorAll(".stat-card").forEach((card) => {
-    card.classList.remove("active")
-  })
-
-  const selectedCard = document.querySelector(`[onclick="filterByFoujName('${foujName}')"]`)
-  if (selectedCard) {
-    selectedCard.classList.add("active")
-  }
-
-  if (currentSelectedFouj === foujName) {
-    currentSelectedFouj = ""
-    document.getElementById("currentFoujTitle").textContent = "جميع الطلاب المسجلين"
-    displayStudentsTable()
-    if (selectedCard) selectedCard.classList.remove("active")
-  } else {
-    const filtered = registeredStudents.filter((s) => {
-      const studentFoujName = getFoujName(s.location, s.schedule)
-      return studentFoujName === foujName
-    })
-
-    currentSelectedFouj = foujName
-    document.getElementById("currentFoujTitle").textContent = `طلاب ${foujName} (${filtered.length})`
-    displayStudentsTable(filtered)
-  }
-}
-
-function updateFoujFilters() {
-  const foujFilter = document.getElementById("foujFilter")
-  if (!foujFilter) return
-
-  const selectedValue = foujFilter.value
-  foujFilter.innerHTML = '<option value="">جميع الأفواج</option>'
-
-  const activeFoujs = new Set()
-  registeredStudents.forEach((student) => {
-    const foujName = getFoujName(student.location, student.schedule)
-    activeFoujs.add(foujName)
-  })
-
-  Array.from(activeFoujs)
-    .sort()
-    .forEach((foujName) => {
-      const option = document.createElement("option")
-      option.value = foujName
-      option.textContent = foujName
-      foujFilter.appendChild(option)
-    })
-
-  if (selectedValue && Array.from(activeFoujs).includes(selectedValue)) {
-    foujFilter.value = selectedValue
-  }
-}
-
-function filterByFouj() {
-  const foujFilter = document.getElementById("foujFilter")
-  const selectedFouj = foujFilter ? foujFilter.value : ""
-
-  if (selectedFouj) {
-    filterByFoujName(selectedFouj)
-  } else {
-    currentSelectedFouj = ""
-    document.getElementById("currentFoujTitle").textContent = "جميع الطلاب المسجلين"
-    displayStudentsTable()
-    document.querySelectorAll(".stat-card").forEach((card) => {
-      card.classList.remove("active")
-    })
-  }
+        `;
+    tableBody.innerHTML += row;
+  });
 }
 
 function filterStudents() {
-  const branchFilter = document.getElementById("branchFilter")
-  const locationFilter = document.getElementById("locationFilter")
-
-  let filtered = registeredStudents
-
+  const branchFilter = document.getElementById("branchFilter");
+  let filtered = registeredStudents;
   if (branchFilter && branchFilter.value) {
-    filtered = filtered.filter((s) => s.branch === branchFilter.value)
+    filtered = filtered.filter((s) => s.branch === branchFilter.value);
   }
-
-  if (locationFilter && locationFilter.value) {
-    filtered = filtered.filter((s) => s.location === locationFilter.value)
-  }
-
-  if (currentSelectedFouj) {
-    filtered = filtered.filter((s) => {
-      const foujName = getFoujName(s.location, s.schedule)
-      return foujName === currentSelectedFouj
-    })
-  }
-
-  displayStudentsTable(filtered)
-
-  let title = "الطلاب المسجلين"
-  const filters = []
-  if (currentSelectedFouj) filters.push(currentSelectedFouj)
-  if (branchFilter && branchFilter.value) filters.push(branchFilter.value)
-  if (locationFilter && locationFilter.value) filters.push(locationFilter.value)
-
-  if (filters.length > 0) {
-    title = `${title} - ${filters.join(" - ")} (${filtered.length})`
-  } else {
-    title = `${title} (${filtered.length})`
-  }
-
-  document.getElementById("currentFoujTitle").textContent = title
+  displayStudentsTable(filtered);
 }
 
-// ===== دوال التعديل الكاملة =====
-
-// دالة فتح نافذة التعديل وتعبئة البيانات
-function editStudent(studentUID) {
-  console.log("✏️ فتح نافذة تعديل للطالب:", studentUID)
-
-  const student = findStudentByUID(studentUID)
-
-  if (!student) {
-    console.error("❌ فشل العثور على الطالب للتعديل")
-    showAlert("❌ فشل في العثور على الطالب في السجلات", "danger")
-    return
+// ===== النوافذ الإضافية (تغيير الفوج والحذف) =====
+function showFoujChangeModal() {
+  document.getElementById("foujConfirmModal").style.display = "none";
+  const foujChoices = document.getElementById("foujChoicesList");
+  if(foujChoices) {
+      foujChoices.innerHTML = "";
+      FOUJ_OPTIONS.forEach((opt) => {
+        foujChoices.innerHTML += `<label class="radio-label"><input required type="radio" name="chosenFouj" value="${opt.key}">${opt.name}</label>`;
+      });
   }
-
-  console.log("✅ تم العثور على الطالب للتعديل:", student.fullName)
-
-  // حفظ UID الطالب الحالي
-  currentEditingStudentUID = studentUID
-
-  // تعبئة البيانات في النموذج
-
-  // نوع الطالب
-  const studentTypeRadios = document.querySelectorAll('input[name="editStudentType"]')
-  studentTypeRadios.forEach((radio) => {
-    radio.checked = radio.value === student.studentType
-  })
-
-  // الثانوية
-  const schoolContainer = document.getElementById("editSchoolContainer")
-  const schoolSelect = document.getElementById("editSchool")
-  if (student.studentType === "نظامي") {
-    schoolContainer.style.display = "block"
-    schoolSelect.required = true
-    schoolSelect.value = student.school || ""
-  } else {
-    schoolContainer.style.display = "none"
-    schoolSelect.required = false
-    schoolSelect.value = ""
-  }
-
-  // البيانات الأساسية
-  document.getElementById("editFullName").value = student.fullName || ""
-  document.getElementById("editBirthDate").value = student.birthDate || ""
-  document.getElementById("editAverageGrade").value = student.averageGrade || ""
-  document.getElementById("editMathLevel").value = student.mathLevel || ""
-  document.getElementById("editPersonalPhone").value = student.personalPhone || ""
-  document.getElementById("editGuardianPhone").value = student.guardianPhone || ""
-
-  // الشعبة
-  const branchRadios = document.querySelectorAll('input[name="editBranch"]')
-  branchRadios.forEach((radio) => {
-    radio.checked = radio.value === student.branch
-  })
-
-  // المكان
-  const locationRadios = document.querySelectorAll('input[name="editLocation"]')
-  locationRadios.forEach((radio) => {
-    radio.checked = radio.value === student.location
-  })
-
-  // تحديث خيارات التوقيت
-  updateEditScheduleOptions()
-
-  // تحديد التوقيت المحدد
-  setTimeout(() => {
-    const scheduleRadios = document.querySelectorAll('input[name="editSchedule"]')
-    scheduleRadios.forEach((radio) => {
-      radio.checked = radio.value === student.schedule
-    })
-  }, 100)
-
-  // إظهار النافذة
-  document.getElementById("editStudentModal").style.display = "flex"
+  document.getElementById("foujChangeModal").style.display = "flex";
 }
 
-// دالة التحكم في عرض حقل الثانوية
-function editToggleSchool(radio) {
-  const schoolContainer = document.getElementById("editSchoolContainer")
-  const schoolSelect = document.getElementById("editSchool")
-
-  if (radio.value === "نظامي") {
-    schoolContainer.style.display = "block"
-    schoolSelect.required = true
-  } else {
-    schoolContainer.style.display = "none"
-    schoolSelect.required = false
-    schoolSelect.value = ""
-  }
-}
-
-// دالة تحديث خيارات التوقيت في نافذة التعديل
-function updateEditScheduleOptions() {
-  const selectedLocation = document.querySelector('input[name="editLocation"]:checked')
-  const selectedBranch = document.querySelector('input[name="editBranch"]:checked')
-  const scheduleChoices = document.getElementById("editScheduleChoices")
-
-  if (!selectedLocation) {
-    scheduleChoices.innerHTML = ""
-    return
-  }
-
-  let scheduleHTML = ""
-
-  if (selectedLocation.value === "رأس الوادي") {
-    scheduleHTML = `
-            <label class="radio-label">
-                <input required type="radio" name="editSchedule" value="يوم الجمعة صباحا الساعة 9:00">
-                <span class="radio-icon">🕘</span> يوم الجمعة صباحا الساعة 9:00
-            </label>
-        `
-  } else if (selectedLocation.value === "برج بوعريريج" && selectedBranch) {
-    if (selectedBranch.value === "رياضيات" || selectedBranch.value === "تقني رياضي") {
-      scheduleHTML = `
-                <label class="radio-label">
-                    <input required type="radio" name="editSchedule" value="يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)">
-                    <span class="radio-icon">🕗</span> يوم السبت 8:00 صباحا (رياضيات + تقني رياضي)
-                </label>
-            `
-    } else if (selectedBranch.value === "علوم تجريبية") {
-      scheduleHTML = `
-                <label class="radio-label">
-                    <input required type="radio" name="editSchedule" value="يوم السبت 10:30 صباحا (علوم تجريبية)">
-                    <span class="radio-icon">🕥</span> يوم السبت 10:30 صباحا (علوم تجريبية)
-                </label>
-                <label class="radio-label">
-                    <input required type="radio" name="editSchedule" value="يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)">
-                    <span class="radio-icon">🕐</span> يوم السبت فوج الساعة الواحدة مساء (علوم تجريبية)
-                </label>
-            `
+let studentToChangeFouj = null;
+function openAdminChangeFoujModal(studentUID, studentName) {
+    studentToChangeFouj = studentUID;
+    const nameEl = document.getElementById('adminChangeFoujStudentName');
+    if(nameEl) nameEl.textContent = studentName;
+    
+    const choicesList = document.getElementById('adminFoujChoicesList');
+    if(choicesList) {
+        choicesList.innerHTML = '';
+        FOUJ_OPTIONS.forEach(opt => {
+            choicesList.innerHTML += `<label class="radio-label"><input required type="radio" name="adminChosenFouj" value="${opt.key}">${opt.name}</label>`;
+        });
     }
-  }
-
-  scheduleChoices.innerHTML = scheduleHTML
+    
+    const modal = document.getElementById('adminChangeFoujModal');
+    if(modal) modal.style.display = 'flex';
 }
 
-// دالة حفظ التغييرات
-async function saveEditedStudent(e) {
-  e.preventDefault()
-
-  if (!currentEditingStudentUID) {
-    showAlert("❌ خطأ: لا يوجد طالب قيد التعديل", "danger")
-    return
-  }
-
-  // جمع البيانات المُحدثة
-  const updatedData = {
-    studentType: document.querySelector('input[name="editStudentType"]:checked')?.value,
-    school: document.getElementById("editSchool").value || "غير محدد",
-    fullName: document.getElementById("editFullName").value.trim(),
-    birthDate: document.getElementById("editBirthDate").value,
-    branch: document.querySelector('input[name="editBranch"]:checked')?.value,
-    averageGrade: document.getElementById("editAverageGrade").value,
-    mathLevel: document.getElementById("editMathLevel").value,
-    personalPhone: document.getElementById("editPersonalPhone").value.trim(),
-    guardianPhone: document.getElementById("editGuardianPhone").value.trim(),
-    location: document.querySelector('input[name="editLocation"]:checked')?.value,
-    schedule: document.querySelector('input[name="editSchedule"]:checked')?.value,
-  }
-
-  // التحقق من صحة البيانات
-  if (!updatedData.studentType || !updatedData.fullName || !updatedData.location || !updatedData.schedule) {
-    showAlert("⚠️ يرجى ملء جميع الحقول المطلوبة", "warning")
-    return
-  }
-
-  console.log("💾 حفظ بيانات محدثة للطالب:", currentEditingStudentUID)
-
-  // العثور على الطالب في المصفوفة
-  const studentIndex = registeredStudents.findIndex((s) => {
-    const sUID = s.uid || generateStudentUID(s)
-    return sUID === currentEditingStudentUID
-  })
-
-  if (studentIndex === -1) {
-    showAlert("❌ فشل في العثور على الطالب للتحديث", "danger")
-    return
-  }
-
-  const originalStudent = registeredStudents[studentIndex]
-
-  // إظهار مؤشر التحميل
-  showLoadingIndicator(true)
-
-  try {
-    // تحديث البيانات المحلية
-    registeredStudents[studentIndex] = { ...originalStudent, ...updatedData }
-
-    // حفظ في التخزين المحلي
-    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
-
-    // تحديث في Firebase إذا كان متاحاً
-    if (isFirebaseReady && originalStudent.firebaseId) {
-      try {
-        await window.db.collection("students").doc(originalStudent.firebaseId).update(updatedData)
-        console.log("✅ تم تحديث البيانات في Firebase")
-      } catch (firebaseError) {
-        console.error("⚠️ خطأ في تحديث Firebase:", firebaseError)
-        showAlert("⚠️ تم التحديث محلياً - مشكلة في الاتصال بقاعدة البيانات", "warning")
-      }
-    }
-
-    // إغلاق النافذة
-    closeEditStudentModal()
-
-    // تحديث العرض
-    updateAdminDisplay()
-
-    // إظهار رسالة نجاح
-    showAlert(`✅ تم تحديث بيانات الطالب "${updatedData.fullName}" بنجاح`, "success")
-
-    console.log("🎉 تم حفظ التغييرات بنجاح")
-  } catch (error) {
-    console.error("💥 خطأ في حفظ التغييرات:", error)
-    showAlert("❌ حدث خطأ أثناء حفظ التغييرات", "danger")
-  } finally {
-    showLoadingIndicator(false)
-  }
+function closeAdminChangeFoujModal() {
+    studentToChangeFouj = null;
+    const modal = document.getElementById('adminChangeFoujModal');
+    if(modal) modal.style.display = 'none';
 }
 
-// دالة إغلاق نافذة التعديل
-function closeEditStudentModal() {
-  const modal = document.getElementById("editStudentModal")
-  if (modal) {
-    modal.style.display = "none"
-  }
-  currentEditingStudentUID = null
-  console.log("🚪 تم إغلاق نافذة التعديل")
-}
-
-// ===== دوال الحذف =====
-
-// حذف طالب مع تأكيد
+let studentToDelete = null;
 function confirmDeleteStudent(studentUID, studentName) {
-  console.log("🗑️ طلب حذف الطالب:", studentUID, studentName)
-
-  // حفظ معرف الطالب المراد حذفه
-  studentToDelete = studentUID
-
-  // تحديث اسم الطالب في النافذة
-  const deleteNameElement = document.getElementById("deleteStudentName")
-  if (deleteNameElement) {
-    deleteNameElement.textContent = studentName
-  }
-
-  // إظهار نافذة التأكيد
-  const deleteModal = document.getElementById("deleteConfirmModal")
-  if (deleteModal) {
-    deleteModal.style.display = "flex"
-  }
+  studentToDelete = studentUID;
+  const deleteNameElement = document.getElementById("deleteStudentName");
+  if (deleteNameElement) deleteNameElement.textContent = studentName;
+  const deleteModal = document.getElementById("deleteConfirmModal");
+  if (deleteModal) deleteModal.style.display = "flex";
 }
 
-// تأكيد الحذف
-function proceedWithDelete() {
-  if (studentToDelete) {
-    console.log("✅ تم تأكيد الحذف من المستخدم")
-    deleteStudent(studentToDelete)
-    cancelDelete()
-  }
-}
-
-// إلغاء الحذف
 function cancelDelete() {
-  console.log("❌ تم إلغاء الحذف من المستخدم")
-  studentToDelete = null
-  const deleteModal = document.getElementById("deleteConfirmModal")
-  if (deleteModal) {
-    deleteModal.style.display = "none"
-  }
-  showAlert("⚪ تم إلغاء عملية الحذف", "warning", 3000)
+  studentToDelete = null;
+  const deleteModal = document.getElementById("deleteConfirmModal");
+  if (deleteModal) deleteModal.style.display = "none";
 }
 
-// حذف طالب
-async function deleteStudent(studentUID) {
-  console.log("🗑️ بدء عملية حذف الطالب:", studentUID)
-
-  // البحث عن الطالب بـ UID
-  const student = findStudentByUID(studentUID)
-
-  if (!student) {
-    console.error("❌ فشل العثور على الطالب للحذف")
-    showAlert("❌ فشل في العثور على الطالب في السجلات", "danger", 4000)
-    return
+async function proceedWithDelete() {
+  if (!studentToDelete) return;
+  const studentUID = studentToDelete;
+  cancelDelete();
+  
+  const studentIndex = registeredStudents.findIndex(s => s.uid === studentUID);
+  if (studentIndex === -1) {
+      alert("خطأ: لم يتم العثور على الطالب");
+      return;
   }
-
-  console.log("✅ تم العثور على الطالب للحذف:", student.fullName)
-
-  // إظهار مؤشر التحميل
-  showLoadingIndicator(true)
-  showAlert("⏳ جاري حذف الطالب...", "warning", 2000)
-
-  try {
-    // محاولة حذف من Firebase إذا كان متاحاً
-    if (isFirebaseReady && student.firebaseId) {
-      console.log("🔥 محاولة حذف من Firebase...")
-      try {
-        await window.db.collection("students").doc(student.firebaseId).delete()
-        console.log("✅ تم حذف الطالب من Firebase بنجاح")
-      } catch (firebaseError) {
-        console.error("⚠️ خطأ في حذف الطالب من Firebase:", firebaseError)
-        showAlert("⚠️ تم الحذف محلياً فقط (مشكلة في Firebase)", "warning", 3000)
-      }
-    }
-
-    // العثور على فهرس الطالب في المصفوفة
-    const studentIndex = registeredStudents.findIndex((s) => s.uid === studentUID)
-
-    if (studentIndex === -1) {
-      console.error("❌ فشل في العثور على فهرس الطالب")
-      showAlert("❌ خطأ في فهرس الطالب", "danger")
-      return
-    }
-
-    // حذف من المصفوفة المحلية
-    registeredStudents.splice(studentIndex, 1)
-    console.log("✅ تم حذف الطالب من المصفوفة المحلية")
-
-    // تحديث التخزين المحلي
-    localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents))
-    console.log("✅ تم تحديث التخزين المحلي")
-
-    // تحديث العرض
-    updateAdminDisplay()
-    console.log("✅ تم تحديث عرض لوحة التحكم")
-
-    // إظهار رسالة نجاح
-    showAlert(`✅ تم حذف الطالب "${student.fullName}" بنجاح`, "success", 4000)
-
-    console.log("🎉 تمت عملية الحذف بنجاح")
-  } catch (error) {
-    console.error("💥 خطأ عام في حذف الطالب:", error)
-    showAlert("❌ حدث خطأ غير متوقع أثناء حذف الطالب", "danger", 4000)
-  } finally {
-    showLoadingIndicator(false)
+  const student = registeredStudents[studentIndex];
+  
+  if (isFirebaseReady && student.firebaseId) {
+      try { await window.db.collection("students").doc(student.firebaseId).delete(); } 
+      catch (e) { console.error("خطأ في حذف الطالب", e); }
   }
+  
+  registeredStudents.splice(studentIndex, 1);
+  localStorage.setItem("registeredStudents", JSON.stringify(registeredStudents));
+  updateAdminDisplay();
 }
 
-// ===== دوال التصدير =====
-
-// تصدير البيانات إلى Excel
+// ===== التصدير =====
 function exportAllToExcel() {
-  if (registeredStudents.length === 0) {
-    showAlert("❌ لا توجد بيانات للتصدير", "danger")
-    return
-  }
-
-  const headers = [
-    "الرقم",
-    "الفوج",
-    "الاسم واللقب",
-    "نوع الطالب",
-    "الثانوية",
-    "الشعبة",
-    "المعدل",
-    "مستوى الرياضيات",
-    "الهاتف الشخصي",
-    "هاتف الولي",
-    "مكان الدروس",
-    "التوقيت",
-    "تاريخ التسجيل",
-  ]
-
-  let csvContent = "\uFEFF" // BOM لدعم UTF-8
-  csvContent += headers.join(",") + "\n"
-
+  const headers = ["الرقم","الفوج","الاسم","اللقب","النوع","الثانوية","الشعبة","المستوى","الهاتف","كيف سمعت","التوقيت","تاريخ التسجيل"];
+  let csvContent = "\uFEFF" + headers.join(",") + "\n";
+  
   registeredStudents.forEach((student, index) => {
-    const foujName = getFoujName(student.location, student.schedule)
-    const registrationDate =
-      student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString("ar-DZ")
-
     const row = [
       index + 1,
-      foujName,
-      student.fullName,
-      student.studentType,
+      getFoujName(student.location, student.schedule),
+      student.firstName || "",
+      student.lastName || "",
+      student.studentType || "",
       student.school || "غير محدد",
-      student.branch,
-      student.averageGrade,
-      student.mathLevel,
-      student.personalPhone,
-      student.guardianPhone,
-      student.location,
-      student.schedule,
-      registrationDate,
-    ]
-
-    csvContent += row.map((field) => `"${field}"`).join(",") + "\n"
-  })
-
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-  const link = document.createElement("a")
-  link.href = URL.createObjectURL(blob)
-  link.download = `تسجيلات_الطلاب_${new Date().toLocaleDateString("ar-DZ")}.csv`
-  link.click()
-
-  showAlert(`✅ تم تصدير ${registeredStudents.length} طالب بنجاح`, "success")
-}
-
-function exportCurrentFoujToExcel() {
-  let studentsToExport = registeredStudents
-  let filename = "جميع_الطلاب"
-
-  if (currentSelectedFouj) {
-    studentsToExport = registeredStudents.filter((s) => {
-      const foujName = getFoujName(s.location, s.schedule)
-      return foujName === currentSelectedFouj
-    })
-    filename = currentSelectedFouj.replace(/\s+/g, "_")
-  }
-
-  if (studentsToExport.length === 0) {
-    showAlert("❌ لا توجد بيانات للتصدير", "danger")
-    return
-  }
-
-  const headers = [
-    "الرقم",
-    "الاسم واللقب",
-    "نوع الطالب",
-    "الثانوية",
-    "الشعبة",
-    "المعدل",
-    "مستوى الرياضيات",
-    "الهاتف الشخصي",
-    "هاتف الولي",
-    "مكان الدروس",
-    "التوقيت",
-    "تاريخ التسجيل",
-  ]
-
-  let csvContent = "\uFEFF"
-  csvContent += headers.join(",") + "\n"
-
-  studentsToExport.forEach((student, index) => {
-    const registrationDate =
-      student.registrationDate || student.createdAt?.substring(0, 10) || new Date().toLocaleDateString("ar-DZ")
-
-    const row = [
-      index + 1,
-      student.fullName,
-      student.studentType,
-      student.school || "غير محدد",
-      student.branch,
-      student.averageGrade,
-      student.mathLevel,
-      student.personalPhone,
-      student.guardianPhone,
-      student.location,
-      student.schedule,
-      registrationDate,
-    ]
-
-    csvContent += row.map((field) => `"${field}"`).join(",") + "\n"
-  })
-
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-  const link = document.createElement("a")
-  link.href = URL.createObjectURL(blob)
-  link.download = `${filename}_${new Date().toLocaleDateString("ar-DZ")}.csv`
-  link.click()
-
-  showAlert(`✅ تم تصدير ${studentsToExport.length} طالب بنجاح`, "success")
+      student.branch || "",
+      student.mathLevel || "",
+      student.personalPhone || "",
+      student.howDidYouHear || "غير محدد",
+      student.schedule || "",
+      student.registrationDate || ""
+    ];
+    csvContent += row.map(field => `"${field}"`).join(",") + "\n";
+  });
+  
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `تسجيلات_2027.csv`;
+  link.click();
 }
 
 function exportToJSON() {
-  if (registeredStudents.length === 0) {
-    showAlert("❌ لا توجد بيانات للتصدير", "danger")
-    return
-  }
-
-  const backupData = {
-    exportDate: new Date().toISOString(),
-    totalStudents: registeredStudents.length,
-    students: registeredStudents,
-  }
-
-  const blob = new Blob([JSON.stringify(backupData, null, 2)], {
-    type: "application/json;charset=utf-8;",
-  })
-  const link = document.createElement("a")
-  link.href = URL.createObjectURL(blob)
-  link.download = `نسخة_احتياطية_${new Date().toLocaleDateString("ar-DZ")}.json`
-  link.click()
-
-  showAlert("✅ تم إنشاء النسخة الاحتياطية بنجاح", "success")
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(registeredStudents));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "backup_2027.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
 }
 
 async function refreshData() {
-  console.log("🔄 تحديث البيانات...")
-  await loadStudentsFromFirebase()
-  updateAdminDisplay()
-  showAlert("🔄 تم تحديث البيانات بنجاح!", "success")
-}
-
-// ===== دوال لوحة التحكم =====
-
-function accessAdminPanel() {
-  showPasswordModal()
-}
-
-function showPasswordModal() {
-  const modal = document.getElementById("passwordModal")
-  if (modal) {
-    modal.style.display = "flex"
-    const passwordInput = document.getElementById("adminPassword")
-    if (passwordInput) {
-      setTimeout(() => passwordInput.focus(), 100)
-    }
-  }
-}
-
-function confirmPassword() {
-  const passwordInput = document.getElementById("adminPassword")
-  const password = passwordInput ? passwordInput.value : ""
-
-  if (password === "admin123") {
-    cancelPassword()
-    showPage("adminPanel")
-    loadStudentsFromFirebase().then(() => {
-      updateAdminDisplay()
-    })
-  } else if (password.trim() === "") {
-    showAlert("⚠️ يرجى إدخال كلمة المرور", "warning")
-    if (passwordInput) passwordInput.focus()
-  } else {
-    showAlert("❌ كلمة مرور خاطئة", "danger")
-    if (passwordInput) {
-      passwordInput.value = ""
-      passwordInput.focus()
-    }
-  }
-}
-
-function cancelPassword() {
-  const modal = document.getElementById("passwordModal")
-  const passwordInput = document.getElementById("adminPassword")
-  if (modal) modal.style.display = "none"
-  if (passwordInput) passwordInput.value = ""
-}
-
-function togglePasswordVisibility() {
-  const passwordInput = document.getElementById("adminPassword")
-  const toggleIcon = document.getElementById("passwordToggleIcon")
-  if (passwordInput && toggleIcon) {
-    if (passwordInput.type === "password") {
-      passwordInput.type = "text"
-      toggleIcon.className = "fas fa-eye-slash"
+    if(isFirebaseReady) {
+        await loadStudentsFromFirebase();
+        updateAdminDisplay();
+        alert("تم تحديث البيانات بنجاح");
     } else {
-      passwordInput.type = "password"
-      toggleIcon.className = "fas fa-eye"
+        alert("لا يوجد اتصال بقاعدة البيانات");
     }
-  }
 }
-
-// تحديث دالة createAdminButton لإزالة زر الاختبار
-function createAdminButton() {
-  const existingButton = document.querySelector(".admin-control-button")
-  if (existingButton) {
-    existingButton.remove()
-  }
-
-  const adminBtn = document.createElement("button")
-  adminBtn.className = "admin-control-button"
-  adminBtn.innerHTML = '<i class="fas fa-cogs"></i>'
-  adminBtn.title = "لوحة التحكم الإدارية"
-  adminBtn.style.position = "fixed"
-  adminBtn.style.top = "20px"
-  adminBtn.style.right = "20px"
-  adminBtn.style.zIndex = "9999"
-  adminBtn.style.backgroundColor = "rgba(255, 255, 255, 0.95)"
-  adminBtn.style.color = "#000000"
-  adminBtn.style.border = "3px solid #000000"
-  adminBtn.style.padding = "15px"
-  adminBtn.style.fontSize = "24px"
-  adminBtn.style.cursor = "pointer"
-  adminBtn.style.borderRadius = "50%"
-  adminBtn.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.3)"
-  adminBtn.style.transition = "all 0.3s ease"
-  adminBtn.style.width = "60px"
-  adminBtn.style.height = "60px"
-  adminBtn.style.display = "flex"
-  adminBtn.style.alignItems = "center"
-  adminBtn.style.justifyContent = "center"
-
-  adminBtn.addEventListener("click", accessAdminPanel)
-  document.body.appendChild(adminBtn)
-
-  // إزالة هذا السطر:
-  // createTestButton()
-}
-
-// تهيئة التطبيق
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("🚀 تحميل التطبيق...")
-
-  // تهيئة Firebase
-  initializeFirebase()
-
-  // إنشاء زر لوحة التحكم
-  createAdminButton()
-})
-
-// تصدير الدوال الجديدة
-window.proceedWithDelete = proceedWithDelete
-window.cancelDelete = cancelDelete
-window.saveEditedStudent = saveEditedStudent
-
-// تصدير الدوال للاستخدام في HTML
-window.showConsent = showConsent
-window.closeConsent = closeConsent
-window.goToRegistration = goToRegistration
-window.goToHome = goToHome
-window.toggleSchoolField = toggleSchoolField
-window.updateLocationOptions = updateLocationOptions
-window.updateScheduleOptions = updateScheduleOptions
-window.checkAndShowFoujNotice = checkAndShowFoujNotice
-window.confirmFouj = confirmFouj
-window.showFoujChangeModal = showFoujChangeModal
-window.confirmPassword = confirmPassword
-window.cancelPassword = cancelPassword
-window.togglePasswordVisibility = togglePasswordVisibility
-window.exportAllToExcel = exportAllToExcel
-window.exportToJSON = exportToJSON
-window.exportCurrentFoujToExcel = exportCurrentFoujToExcel
-window.refreshData = refreshData
-window.filterByFouj = filterByFouj
-window.filterStudents = filterStudents
-window.editStudent = editStudent
-window.deleteStudent = deleteStudent
-window.confirmDeleteStudent = confirmDeleteStudent
-window.filterByFoujName = filterByFoujName
-window.editToggleSchool = editToggleSchool
-window.updateEditScheduleOptions = updateEditScheduleOptions
-window.closeEditStudentModal = closeEditStudentModal

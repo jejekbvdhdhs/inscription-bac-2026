@@ -213,6 +213,30 @@ function setupSchoolAutocomplete() {
   const otherInput = document.getElementById("schoolOther");
   if (!searchInput || !hiddenInput || !dropdown) return;
 
+  function positionDropdown() {
+    const rect = searchInput.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const desiredHeight = Math.min(260, dropdown.scrollHeight || 260);
+
+    dropdown.style.left = rect.left + "px";
+    dropdown.style.width = rect.width + "px";
+
+    if (spaceBelow < desiredHeight + 12 && spaceAbove > spaceBelow) {
+      // ما فيه مساحة كافية تحت (غالباً بسبب لوحة المفاتيح) -> افتح فوق الحقل
+      dropdown.style.top = "";
+      dropdown.style.bottom = (viewportHeight - rect.top + 6) + "px";
+      dropdown.style.maxHeight = Math.max(120, spaceAbove - 12) + "px";
+      dropdown.classList.add("pop-above");
+    } else {
+      dropdown.style.bottom = "";
+      dropdown.style.top = (rect.bottom + 6) + "px";
+      dropdown.style.maxHeight = Math.max(120, spaceBelow - 12) + "px";
+      dropdown.classList.remove("pop-above");
+    }
+  }
+
   function renderDropdown(filterText) {
     const filtered = filterText
       ? SCHOOLS_LIST.filter(s => s.includes(filterText.trim()))
@@ -227,6 +251,7 @@ function setupSchoolAutocomplete() {
       }).join("");
     }
     dropdown.classList.add("active");
+    positionDropdown();
   }
 
   function closeDropdown() {
@@ -238,6 +263,13 @@ function setupSchoolAutocomplete() {
     hiddenInput.value = ""; // إبطال أي اختيار سابق حتى يتم الاختيار من القائمة مجدداً
     renderDropdown(searchInput.value);
   });
+
+  // إعادة حساب الموقع عند التمرير أو تغيير حجم النافذة (مثلاً عند ظهور/اختفاء لوحة المفاتيح فالهاتف)
+  window.addEventListener("resize", () => { if (dropdown.classList.contains("active")) positionDropdown(); });
+  window.addEventListener("scroll", () => { if (dropdown.classList.contains("active")) positionDropdown(); }, true);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => { if (dropdown.classList.contains("active")) positionDropdown(); });
+  }
 
   dropdown.addEventListener("click", (e) => {
     const option = e.target.closest(".school-option");
@@ -257,7 +289,7 @@ function setupSchoolAutocomplete() {
   });
 
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".school-autocomplete")) closeDropdown();
+    if (!e.target.closest(".school-autocomplete") && !e.target.closest(".school-dropdown")) closeDropdown();
   });
 }
 

@@ -210,7 +210,7 @@
                             <input type="text" id="firstName" name="firstName" required
                                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ' \-]+"
                                    title="يرجى كتابة الاسم بالأحرف اللاتينية (الفرنسية) فقط، بدون أرقام أو رموز أو حروف عربية"
-                                   placeholder="مثال: Mohamed" />
+                                   placeholder="مثال: Akram" />
                             <small style="color:#c0392b; display:block; margin-top:4px;">⚠️ يجب كتابة الاسم بالحروف الفرنسية (اللاتينية) وليس بالعربية</small>
                         </div>
                         <div style="flex: 1; min-width: 200px;">
@@ -218,7 +218,7 @@
                             <input type="text" id="lastName" name="lastName" required
                                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ' \-]+"
                                    title="يرجى كتابة اللقب بالأحرف اللاتينية (الفرنسية) فقط، بدون أرقام أو رموز أو حروف عربية"
-                                   placeholder="مثال: Belaidi" />
+                                   placeholder="مثال: Belayadi" />
                             <small style="color:#c0392b; display:block; margin-top:4px;">⚠️ يجب كتابة اللقب بالحروف الفرنسية (اللاتينية) وليس بالعربية</small>
                         </div>
                     </div>
@@ -296,9 +296,11 @@
                         <!-- ضع رابط Google Maps هنا في src -->
                         <iframe id="mapFrame" src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d479.33497916285836!2d4.78062191083659!3d36.07962688319143!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMzbCsDA0JzQ2LjIiTiA0wrA0Nic1MC41IkU!5e0!3m2!1sen!2sdz!4v1786580472152!5m2!1sen!2sdz" width="100%" height="300" style="border:0; border-radius:10px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
                         
-                        <h3 style="margin-top:20px;">فيديو توجيهي للمكان:</h3>
-                        <!-- ضع رابط فيديو اليوتيوب التوجيهي هنا -->
-                        <iframe id="videoFrame" width="100%" height="300" src="YOUR_YOUTUBE_VIDEO_EMBED_LINK" style="border:0; border-radius:10px;" allowfullscreen></iframe>
+                        <div id="videoSection">
+                            <h3 style="margin-top:20px;">فيديو توجيهي للمكان:</h3>
+                            <!-- ضع رابط فيديو اليوتيوب التوجيهي هنا -->
+                            <iframe id="videoFrame" width="100%" height="300" src="YOUR_YOUTUBE_VIDEO_EMBED_LINK" style="border:0; border-radius:10px;" allowfullscreen></iframe>
+                        </div>
                     </div>
 
                     <button type="submit" class="submit-btn">
@@ -418,8 +420,21 @@
         
             <!-- إحصائيات الأفواج -->
             <div class="fouj-stats">
-                <h3>إحصائيات الأفواج (اضغط على أي فوج لعرض تلاميذه)</h3>
+                <h3>إحصائيات الأفواج (اضغط على أي فوج لعرض تلاميذه فقط، واضغط مرة أخرى لإلغاء الفلترة)</h3>
                 <div id="foujStatsContainer" class="stats-grid"></div>
+            </div>
+
+            <!-- الرسوم البيانية -->
+            <div class="charts-section" style="margin: 30px 0;">
+                <h3>رسوم بيانية وإحصائيات تفصيلية</h3>
+                <div style="display:flex; flex-wrap:wrap; gap:20px; justify-content:center;">
+                    <div id="hearChartContainer" style="background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,0.08); min-width:260px; flex:1; max-width:340px;"></div>
+                    <div id="levelChartContainer" style="background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,0.08); min-width:260px; flex:1; max-width:340px;"></div>
+                    <div id="schoolChartContainer" style="background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,0.08); min-width:260px; flex:1; max-width:340px;"></div>
+                </div>
+                <div style="margin-top:20px; display:flex; justify-content:center;">
+                    <div id="levelBoxPlotContainer" style="background:#fff; border-radius:12px; padding:16px 20px; box-shadow:0 2px 10px rgba(0,0,0,0.08); width:100%; max-width:480px;"></div>
+                </div>
             </div>
             
             <div class="admin-controls">
@@ -440,11 +455,12 @@
                 </div>
                 
                 <div class="fouj-controls">
-                    <select id="foujFilter" onchange="filterByFouj()">
+                    <input type="text" id="nameSearchFilter" placeholder="🔍 ابحث بالاسم أو اللقب..." oninput="applyAllFilters()" style="padding:8px 12px; border-radius:8px; border:1px solid #ccc; min-width:200px;" />
+                    <select id="foujFilter" onchange="filterByFouj(this.value)">
                         <option value="">جميع الأفواج</option>
                     </select>
                     <!-- تم التحديث إلى الشعب الجديدة -->
-                    <select id="branchFilter" onchange="filterStudents()">
+                    <select id="branchFilter" onchange="applyAllFilters()">
                         <option value="">جميع الشعب</option>
                         <option value="علوم تجريبية">علوم تجريبية</option>
                         <option value="الهندسة">الهندسة</option>
@@ -471,6 +487,7 @@
                             <th>الاسم</th>
                             <th>اللقب</th>
                             <th>النوع</th>
+                            <th>الثانوية</th>
                             <th>الشعبة</th>
                             <th>مستوى الرياضيات</th>
                             <th>الهاتف</th>

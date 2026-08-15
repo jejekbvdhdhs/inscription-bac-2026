@@ -7,8 +7,8 @@ let pendingStudentData = null;
 
 const FOUJ_NAMES = {
   "برج بوعريريج_السبت 08:30 صباحا والثلاثاء 01:30 مساء": "فوج الرياضيات والهندسة",
-  "برج بوعريريج_السبت 10:30 صباحا والثلاثاء 03:30 مساء": "فوج العلوم التجريبية 1",
-  "برج بوعريريج_السبت 01:15 مساء والجمعة 08:30 صباحا": "فوج العلوم التجريبية 2"
+  "برج بوعريريج_السبت 10:30 صباحا والثلاثاء 03:30 مساء": "فوج العلوم التجريبية",
+  "برج بوعريريج_السبت 01:15 مساء والجمعة 08:30 صباحا": "فوج الرياضيات رقم 02"
 };
 
 const FOUJ_OPTIONS = [
@@ -20,17 +20,35 @@ const FOUJ_OPTIONS = [
   },
   {
     key: "برج بوعريريج_السبت 10:30 صباحا والثلاثاء 03:30 مساء",
-    name: "فوج العلوم التجريبية 1",
+    name: "فوج العلوم التجريبية",
     location: "برج بوعريريج",
     schedule: "السبت 10:30 صباحا والثلاثاء 03:30 مساء"
   },
   {
     key: "برج بوعريريج_السبت 01:15 مساء والجمعة 08:30 صباحا",
-    name: "فوج العلوم التجريبية 2",
+    name: "فوج الرياضيات رقم 02",
     location: "برج بوعريريج",
     schedule: "السبت 01:15 مساء والجمعة 08:30 صباحا"
   }
 ];
+
+// فوج الرياضيات الأول لا يُفتح فوج الرياضيات رقم 02 إلا بعد امتلائه بهذا العدد
+const MAIN_MATH_FOUJ_KEY = "برج بوعريريج_السبت 08:30 صباحا والثلاثاء 01:30 مساء";
+const MATH_FOUJ2_KEY = "برج بوعريريج_السبت 01:15 مساء والجمعة 08:30 صباحا";
+const MATH_FOUJ2_THRESHOLD = 60;
+
+// عدد التلاميذ المسجلين حالياً في فوج معين (بالمفتاح)
+function countFoujStudents(key) {
+  const opt = FOUJ_OPTIONS.find((f) => f.key === key);
+  if (!opt) return 0;
+  return registeredStudents.filter((s) => s.location === opt.location && s.schedule === opt.schedule).length;
+}
+
+// هل هذا الفوج متاح للتسجيل حالياً؟ (فوج الرياضيات رقم 02 مقفل حتى يمتلئ الفوج الأول)
+function isFoujUnlocked(key) {
+  if (key !== MATH_FOUJ2_KEY) return true;
+  return countFoujStudents(MAIN_MATH_FOUJ_KEY) >= MATH_FOUJ2_THRESHOLD;
+}
 
 // ===== قائمة الثانويات (برج بوعريريج) - مصدر واحد يُستخدم في القائمة المنبثقة والتحقق =====
 const SCHOOLS_LIST = [
@@ -297,6 +315,19 @@ function updateLocationOptions(radio) {
   if (!radio || !radio.checked) return;
   document.getElementById("scheduleOptions").style.display = "block";
   document.getElementById("mapContainer").style.display = "block";
+
+  // إخفاء قسم الفيديو التوجيهي تلقائياً إذا لم يتم استبدال الرابط الوهمي برابط حقيقي
+  const videoFrame = document.getElementById("videoFrame");
+  const videoSection = document.getElementById("videoSection");
+  if (videoFrame && videoSection) {
+    const src = videoFrame.getAttribute("src") || "";
+    if (!src || src === "YOUR_YOUTUBE_VIDEO_EMBED_LINK") {
+      videoSection.style.display = "none";
+    } else {
+      videoSection.style.display = "block";
+    }
+  }
+
   updateScheduleOptions();
 }
 
@@ -311,17 +342,27 @@ function updateScheduleOptions() {
     scheduleHTML = `
       <label class="radio-label">
           <input required type="radio" name="schedule" value="السبت 08:30 صباحا والثلاثاء 01:30 مساء">
-          <span class="radio-icon">🕗</span> السبت 08:30 صباحا والثلاثاء 01:30 مساء (ماتيلام + هندسة)
+          <span class="radio-icon">🕗</span> فوج الرياضيات والهندسة: السبت 08:30 صباحا والثلاثاء 01:30 مساء
       </label>`;
+
+    if (isFoujUnlocked(MATH_FOUJ2_KEY)) {
+      scheduleHTML += `
+      <label class="radio-label">
+          <input required type="radio" name="schedule" value="السبت 01:15 مساء والجمعة 08:30 صباحا">
+          <span class="radio-icon">🕐</span> فوج الرياضيات رقم 02: السبت 01:15م والجمعة 08:30ص
+      </label>`;
+    } else {
+      const remaining = Math.max(0, MATH_FOUJ2_THRESHOLD - countFoujStudents(MAIN_MATH_FOUJ_KEY));
+      scheduleHTML += `
+      <div class="radio-label" style="opacity:0.55; cursor:not-allowed; pointer-events:none;">
+          <span class="radio-icon">🔒</span> فوج الرياضيات رقم 02 (سيُفتح عند اكتمال ${MATH_FOUJ2_THRESHOLD} تلميذاً في الفوج الأول - متبقي ${remaining})
+      </div>`;
+    }
   } else if (selectedBranch.value === "علوم تجريبية") {
     scheduleHTML = `
       <label class="radio-label">
           <input required type="radio" name="schedule" value="السبت 10:30 صباحا والثلاثاء 03:30 مساء">
-          <span class="radio-icon">🕥</span> الفوج الأول: السبت 10:30ص والثلاثاء 03:30م
-      </label>
-      <label class="radio-label">
-          <input required type="radio" name="schedule" value="السبت 01:15 مساء والجمعة 08:30 صباحا">
-          <span class="radio-icon">🕐</span> الفوج الثاني: السبت 01:15م والجمعة 08:30ص
+          <span class="radio-icon">🕥</span> فوج العلوم التجريبية: السبت 10:30ص والثلاثاء 03:30م
       </label>`;
   }
   scheduleChoices.innerHTML = scheduleHTML;
@@ -455,6 +496,12 @@ function confirmFouj() {
 }
 
 async function finishStudentRegistration(studentData) {
+  const targetKey = `${studentData.location}_${studentData.schedule}`;
+  if (!isFoujUnlocked(targetKey)) {
+    alert("⚠️ فوج الرياضيات رقم 02 غير متاح للتسجيل بعد، يرجى اختيار فوج آخر.");
+    return;
+  }
+
   document.getElementById("loadingIndicator").style.display = "block";
   const success = await saveStudentToFirebase(studentData);
   document.getElementById("loadingIndicator").style.display = "none";
@@ -527,7 +574,7 @@ function confirmPassword() {
     const passwordInput = document.getElementById("adminPassword");
     const password = passwordInput ? passwordInput.value : "";
     
-    if (password === "admin123") {
+    if (password === "akram@site.com") {
         cancelPassword();
         showPage("adminPanel");
     } else if (password.trim() === "") {
@@ -540,10 +587,165 @@ function confirmPassword() {
 
 function updateAdminDisplay() {
   if (document.getElementById("adminPanel") && document.getElementById("adminPanel").classList.contains("active")) {
+    populateFoujFilterSelect();
     displayTotalCount();
     displayFoujStats();
-    displayStudentsTable();
+    displayCharts();
+    applyAllFilters();
   }
+}
+
+// تعبئة قائمة فلترة الأفواج بخيارات ديناميكية من FOUJ_OPTIONS
+function populateFoujFilterSelect() {
+  const select = document.getElementById("foujFilter");
+  if (!select) return;
+  const currentValue = select.value;
+  select.innerHTML = `<option value="">جميع الأفواج</option>` +
+    FOUJ_OPTIONS.map((opt) => `<option value="${opt.key}">${opt.name}</option>`).join("");
+  select.value = currentValue || currentFoujFilterKey || "";
+}
+
+// ===== الرسوم البيانية (دوائر نسبية + مخطط صندوق) =====
+const CHART_COLORS = ["#3498db","#e67e22","#27ae60","#9b59b6","#e74c3c","#1abc9c","#f1c40f","#34495e","#16a085","#c0392b","#7f8c8d","#2c3e50"];
+
+function renderPieChart(containerId, dataMap, title) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const entries = Object.entries(dataMap).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((sum, [, v]) => sum + v, 0);
+
+  if (total === 0) {
+    container.innerHTML = `<h4 style="text-align:center; margin-bottom:8px;">${title}</h4><p style="color:#999; text-align:center; padding:20px;">لا توجد بيانات كافية بعد</p>`;
+    return;
+  }
+
+  const cx = 100, cy = 100, r = 90;
+  let startAngle = -90;
+  let paths = "";
+  let legend = "";
+
+  entries.forEach(([label, value], i) => {
+    const color = CHART_COLORS[i % CHART_COLORS.length];
+    const percentage = (value / total) * 100;
+    const angle = (value / total) * 360;
+
+    if (entries.length === 1) {
+      paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"></circle>`;
+    } else {
+      const endAngle = startAngle + angle;
+      const largeArc = angle > 180 ? 1 : 0;
+      const x1 = cx + r * Math.cos((Math.PI / 180) * startAngle);
+      const y1 = cy + r * Math.sin((Math.PI / 180) * startAngle);
+      const x2 = cx + r * Math.cos((Math.PI / 180) * endAngle);
+      const y2 = cy + r * Math.sin((Math.PI / 180) * endAngle);
+      paths += `<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${color}" stroke="#fff" stroke-width="1.5"></path>`;
+      startAngle = endAngle;
+    }
+
+    legend += `
+      <div style="display:flex; align-items:center; gap:8px; margin:5px 0; font-size:0.85rem;">
+        <span style="width:12px; height:12px; border-radius:3px; background:${color}; flex-shrink:0; display:inline-block;"></span>
+        <span>${label}: <strong>${value}</strong> (${percentage.toFixed(1)}%)</span>
+      </div>`;
+  });
+
+  container.innerHTML = `
+    <h4 style="text-align:center; margin-bottom:12px;">${title}</h4>
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:center;">
+      <svg viewBox="0 0 200 200" width="160" height="160" style="flex-shrink:0;">${paths}</svg>
+      <div style="min-width:140px;">${legend}</div>
+    </div>
+    <div style="text-align:center; font-size:0.75rem; color:#999; margin-top:8px;">الإجمالي: ${total}</div>
+  `;
+}
+
+function displayCharts() {
+  // كيف سمعت بنا
+  const hearMap = {};
+  registeredStudents.forEach((s) => {
+    const k = s.howDidYouHear || "غير محدد";
+    hearMap[k] = (hearMap[k] || 0) + 1;
+  });
+  renderPieChart("hearChartContainer", hearMap, "📢 كيف سمعت بنا");
+
+  // قدرات التلاميذ (المستوى)
+  const levelMap = {};
+  registeredStudents.forEach((s) => {
+    const k = s.mathLevel || "غير محدد";
+    levelMap[k] = (levelMap[k] || 0) + 1;
+  });
+  renderPieChart("levelChartContainer", levelMap, "📊 قدرات التلاميذ (المستوى)");
+
+  // الثانويات (الطلبة الأحرار "غير محدد" تُعرض باسم "حر")
+  const schoolMap = {};
+  registeredStudents.forEach((s) => {
+    let k = (s.school || "غير محدد").trim();
+    if (k === "غير محدد" || k === "") k = "حر";
+    schoolMap[k] = (schoolMap[k] || 0) + 1;
+  });
+  renderPieChart("schoolChartContainer", schoolMap, "🏫 توزيع الثانويات");
+
+  renderLevelBoxPlot("levelBoxPlotContainer");
+}
+
+// مخطط الصندوق (Box Plot) لمستوى التلاميذ، بترميز المستويات على مقياس رقمي 1-5
+const LEVEL_SCALE = { "ضعيف": 1, "مقبول": 2, "جيد": 3, "جيد جداً": 4, "ممتاز": 5 };
+const LEVEL_LABELS = ["ضعيف", "مقبول", "جيد", "جيد جداً", "ممتاز"];
+
+function computeBoxPlotStats(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const n = sorted.length;
+  if (n === 0) return null;
+  const quantile = (arr, q) => {
+    const pos = (arr.length - 1) * q;
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    return arr[base + 1] !== undefined ? arr[base] + rest * (arr[base + 1] - arr[base]) : arr[base];
+  };
+  return {
+    min: sorted[0],
+    q1: quantile(sorted, 0.25),
+    median: quantile(sorted, 0.5),
+    q3: quantile(sorted, 0.75),
+    max: sorted[n - 1]
+  };
+}
+
+function renderLevelBoxPlot(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const values = registeredStudents.map((s) => LEVEL_SCALE[s.mathLevel]).filter((v) => v !== undefined);
+
+  if (values.length === 0) {
+    container.innerHTML = `<h4 style="text-align:center; margin-bottom:8px;">📦 مخطط الصندوق لمستوى التلاميذ</h4><p style="color:#999; text-align:center; padding:20px;">لا توجد بيانات كافية بعد</p>`;
+    return;
+  }
+
+  const stats = computeBoxPlotStats(values);
+  const scaleMin = 1, scaleMax = 5;
+  const toX = (v) => 40 + ((v - scaleMin) / (scaleMax - scaleMin)) * 320;
+  const y = 55, boxHeight = 44;
+
+  const svg = `
+    <svg viewBox="0 0 400 130" width="100%" style="max-width:440px; display:block; margin:0 auto;">
+      <line x1="40" y1="${y}" x2="360" y2="${y}" stroke="#ddd" stroke-width="1"></line>
+      <line x1="${toX(stats.min).toFixed(1)}" y1="${y}" x2="${toX(stats.max).toFixed(1)}" y2="${y}" stroke="#2c3e50" stroke-width="2"></line>
+      <line x1="${toX(stats.min).toFixed(1)}" y1="${y - 12}" x2="${toX(stats.min).toFixed(1)}" y2="${y + 12}" stroke="#2c3e50" stroke-width="2"></line>
+      <line x1="${toX(stats.max).toFixed(1)}" y1="${y - 12}" x2="${toX(stats.max).toFixed(1)}" y2="${y + 12}" stroke="#2c3e50" stroke-width="2"></line>
+      <rect x="${toX(stats.q1).toFixed(1)}" y="${y - boxHeight / 2}" width="${Math.max(2, toX(stats.q3) - toX(stats.q1)).toFixed(1)}" height="${boxHeight}" fill="#3498db" fill-opacity="0.25" stroke="#3498db" stroke-width="2" rx="4"></rect>
+      <line x1="${toX(stats.median).toFixed(1)}" y1="${y - boxHeight / 2}" x2="${toX(stats.median).toFixed(1)}" y2="${y + boxHeight / 2}" stroke="#e74c3c" stroke-width="3"></line>
+      ${LEVEL_LABELS.map((lab, i) => `<text x="${toX(i + 1).toFixed(1)}" y="${y + 38}" font-size="11" text-anchor="middle" fill="#666">${lab}</text>`).join("")}
+    </svg>
+    <div style="text-align:center; font-size:0.82rem; color:#555; margin-top:6px;">
+      الوسيط: <strong>${LEVEL_LABELS[Math.round(stats.median) - 1] || stats.median.toFixed(1)}</strong>
+      &nbsp;|&nbsp; الربيع الأول: ${LEVEL_LABELS[Math.round(stats.q1) - 1] || stats.q1.toFixed(1)}
+      &nbsp;|&nbsp; الربيع الثالث: ${LEVEL_LABELS[Math.round(stats.q3) - 1] || stats.q3.toFixed(1)}
+    </div>
+  `;
+
+  container.innerHTML = `<h4 style="text-align:center; margin-bottom:12px;">📦 مخطط الصندوق لمستوى التلاميذ (Box Plot)</h4>${svg}`;
 }
 
 function displayTotalCount() {
@@ -573,6 +775,8 @@ function displayTotalCount() {
   `;
 }
 
+let currentFoujFilterKey = "";
+
 function displayFoujStats() {
   const container = document.getElementById("foujStatsContainer");
   if (!container) return;
@@ -586,23 +790,42 @@ function displayFoujStats() {
   });
 
   container.innerHTML = "";
-  Object.values(foujStats).forEach((fouj) => {
+  Object.entries(foujStats).forEach(([key, fouj]) => {
     const percentage = (fouj.count / fouj.capacity) * 100;
     const isFull = fouj.count >= fouj.capacity;
     const isEmpty = fouj.count === 0;
+    const isActive = key === currentFoujFilterKey;
     let cardClass = "stat-card";
     if (isEmpty) cardClass += " empty";
+    if (isActive) cardClass += " active-fouj";
 
     container.innerHTML += `
-        <div class="${cardClass}">
+        <div class="${cardClass}" data-fouj-key="${key}" style="cursor:pointer; ${isActive ? 'outline: 3px solid #2c3e50; outline-offset: 2px;' : ''}">
             <h4>${fouj.name}</h4>
             <div class="stat-number">${fouj.count}/${fouj.capacity}</div>
             <div class="capacity-bar">
                 <div class="capacity-fill ${isFull ? "capacity-full" : ""}" style="width: ${percentage}%"></div>
             </div>
+            ${isActive ? '<div style="font-size:0.75rem; color:#2c3e50; margin-top:6px; font-weight:700;">✓ مُفعّل - اضغط للإلغاء</div>' : ''}
         </div>
     `;
   });
+
+  container.querySelectorAll(".stat-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const key = card.getAttribute("data-fouj-key");
+      filterByFouj(key === currentFoujFilterKey ? "" : key);
+    });
+  });
+}
+
+// فلترة جدول التلاميذ حسب الفوج المختار (من الكادر أو من القائمة المنسدلة)
+function filterByFouj(key) {
+  currentFoujFilterKey = key || "";
+  const select = document.getElementById("foujFilter");
+  if (select) select.value = currentFoujFilterKey;
+  displayFoujStats();
+  applyAllFilters();
 }
 
 function displayStudentsTable(filteredStudents = null) {
@@ -612,7 +835,7 @@ function displayStudentsTable(filteredStudents = null) {
   const studentsToShow = filteredStudents || registeredStudents;
 
   if (studentsToShow.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="12" style="text-align: center; padding: 40px; color: #666;"><i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>لا توجد تسجيلات حتى الآن</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; padding: 40px; color: #666;"><i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 20px; display: block;"></i>لا توجد تسجيلات حتى الآن</td></tr>`;
     return;
   }
 
@@ -627,6 +850,7 @@ function displayStudentsTable(filteredStudents = null) {
                 <td><strong>${student.firstName || ""}</strong></td>
                 <td><strong>${student.lastName || ""}</strong></td>
                 <td>${student.studentType || ""}</td>
+                <td>${student.school || "غير محدد"}</td>
                 <td>${student.branch || ""}</td>
                 <td>${student.mathLevel || ""}</td>
                 <td>${student.personalPhone || ""}</td>
@@ -649,12 +873,35 @@ function displayStudentsTable(filteredStudents = null) {
   });
 }
 
-function filterStudents() {
+function applyAllFilters() {
   const branchFilter = document.getElementById("branchFilter");
+  const nameFilter = document.getElementById("nameSearchFilter");
   let filtered = registeredStudents;
+
+  if (currentFoujFilterKey) {
+    const opt = FOUJ_OPTIONS.find((f) => f.key === currentFoujFilterKey);
+    if (opt) filtered = filtered.filter((s) => s.location === opt.location && s.schedule === opt.schedule);
+  }
+
   if (branchFilter && branchFilter.value) {
     filtered = filtered.filter((s) => s.branch === branchFilter.value);
   }
+
+  if (nameFilter && nameFilter.value.trim()) {
+    const q = nameFilter.value.trim().toLowerCase();
+    filtered = filtered.filter((s) => {
+      const first = (s.firstName || "").toLowerCase();
+      const last = (s.lastName || "").toLowerCase();
+      return first.includes(q) || last.includes(q) || `${first} ${last}`.includes(q);
+    });
+  }
+
+  const titleEl = document.getElementById("currentFoujTitle");
+  if (titleEl) {
+    const opt = currentFoujFilterKey ? FOUJ_OPTIONS.find((f) => f.key === currentFoujFilterKey) : null;
+    titleEl.textContent = opt ? `تلاميذ: ${opt.name} (${filtered.length})` : `جميع الطلاب المسجلين (${filtered.length})`;
+  }
+
   displayStudentsTable(filtered);
 }
 
@@ -664,7 +911,7 @@ function showFoujChangeModal() {
   const foujChoices = document.getElementById("foujChoicesList");
   if(foujChoices) {
       foujChoices.innerHTML = "";
-      FOUJ_OPTIONS.forEach((opt) => {
+      FOUJ_OPTIONS.filter((opt) => isFoujUnlocked(opt.key)).forEach((opt) => {
         foujChoices.innerHTML += `<label class="radio-label"><input required type="radio" name="chosenFouj" value="${opt.key}">${opt.name}</label>`;
       });
   }
@@ -734,10 +981,45 @@ async function proceedWithDelete() {
 
 // ===== التصدير =====
 function exportAllToExcel() {
+  exportStudentsToCSV(registeredStudents, "تسجيلات_2027.csv");
+}
+
+function exportCurrentFoujToExcel() {
+  // يصدّر بالضبط ما هو معروض حالياً فالجدول (بعد تطبيق فلتر الفوج/الشعبة/البحث بالاسم)
+  let filtered = registeredStudents;
+  if (currentFoujFilterKey) {
+    const opt = FOUJ_OPTIONS.find((f) => f.key === currentFoujFilterKey);
+    if (opt) filtered = filtered.filter((s) => s.location === opt.location && s.schedule === opt.schedule);
+  }
+  const branchFilter = document.getElementById("branchFilter");
+  if (branchFilter && branchFilter.value) {
+    filtered = filtered.filter((s) => s.branch === branchFilter.value);
+  }
+  const nameFilter = document.getElementById("nameSearchFilter");
+  if (nameFilter && nameFilter.value.trim()) {
+    const q = nameFilter.value.trim().toLowerCase();
+    filtered = filtered.filter((s) => {
+      const first = (s.firstName || "").toLowerCase();
+      const last = (s.lastName || "").toLowerCase();
+      return first.includes(q) || last.includes(q) || `${first} ${last}`.includes(q);
+    });
+  }
+
+  if (filtered.length === 0) {
+    alert("لا توجد بيانات لتصديرها حسب الفلترة الحالية.");
+    return;
+  }
+
+  const opt = currentFoujFilterKey ? FOUJ_OPTIONS.find((f) => f.key === currentFoujFilterKey) : null;
+  const filename = opt ? `فوج_${opt.name.replace(/\s+/g, "_")}_2027.csv` : "الفوج_الحالي_2027.csv";
+  exportStudentsToCSV(filtered, filename);
+}
+
+function exportStudentsToCSV(students, filename) {
   const headers = ["الرقم","الفوج","الاسم","اللقب","النوع","الثانوية","الشعبة","المستوى","الهاتف","كيف سمعت","التوقيت","تاريخ التسجيل"];
   let csvContent = "\uFEFF" + headers.join(",") + "\n";
-  
-  registeredStudents.forEach((student, index) => {
+
+  students.forEach((student, index) => {
     const row = [
       index + 1,
       getFoujName(student.location, student.schedule),
@@ -754,11 +1036,11 @@ function exportAllToExcel() {
     ];
     csvContent += row.map(field => `"${field}"`).join(",") + "\n";
   });
-  
+
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `تسجيلات_2027.csv`;
+  link.download = filename;
   link.click();
 }
 

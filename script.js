@@ -316,16 +316,14 @@ function updateLocationOptions(radio) {
   document.getElementById("scheduleOptions").style.display = "block";
   document.getElementById("mapContainer").style.display = "block";
 
-  // إخفاء قسم الفيديو التوجيهي تلقائياً إذا لم يتم استبدال الرابط الوهمي برابط حقيقي
+  // إظهار الفيديو التوجيهي الحقيقي تلقائياً إذا تم استبدال الرابط الوهمي، وإلا إبقاء مساحة محجوزة له
   const videoFrame = document.getElementById("videoFrame");
-  const videoSection = document.getElementById("videoSection");
-  if (videoFrame && videoSection) {
+  const videoPlaceholder = document.getElementById("videoPlaceholder");
+  if (videoFrame && videoPlaceholder) {
     const src = videoFrame.getAttribute("src") || "";
-    if (!src || src === "YOUR_YOUTUBE_VIDEO_EMBED_LINK") {
-      videoSection.style.display = "none";
-    } else {
-      videoSection.style.display = "block";
-    }
+    const hasRealLink = src && src !== "YOUR_YOUTUBE_VIDEO_EMBED_LINK";
+    videoFrame.style.display = hasRealLink ? "block" : "none";
+    videoPlaceholder.style.display = hasRealLink ? "none" : "flex";
   }
 
   updateScheduleOptions();
@@ -352,10 +350,9 @@ function updateScheduleOptions() {
           <span class="radio-icon">🕐</span> فوج الرياضيات رقم 02: السبت 01:15م والجمعة 08:30ص
       </label>`;
     } else {
-      const remaining = Math.max(0, MATH_FOUJ2_THRESHOLD - countFoujStudents(MAIN_MATH_FOUJ_KEY));
       scheduleHTML += `
       <div class="radio-label" style="opacity:0.55; cursor:not-allowed; pointer-events:none;">
-          <span class="radio-icon">🔒</span> فوج الرياضيات رقم 02 (سيُفتح عند اكتمال ${MATH_FOUJ2_THRESHOLD} تلميذاً في الفوج الأول - متبقي ${remaining})
+          <span class="radio-icon">🔒</span> فوج الرياضيات رقم 02 (غير مفعّل حتى يكتمل عدد الفوج الأول)
       </div>`;
     }
   } else if (selectedBranch.value === "علوم تجريبية") {
@@ -646,7 +643,7 @@ function renderPieChart(containerId, dataMap, title) {
     legend += `
       <div style="display:flex; align-items:center; gap:8px; margin:5px 0; font-size:0.85rem;">
         <span style="width:12px; height:12px; border-radius:3px; background:${color}; flex-shrink:0; display:inline-block;"></span>
-        <span>${label}: <strong>${value}</strong> (${percentage.toFixed(1)}%)</span>
+        <span>${label}: <strong>${percentage.toFixed(1)}%</strong></span>
       </div>`;
   });
 
@@ -656,7 +653,6 @@ function renderPieChart(containerId, dataMap, title) {
       <svg viewBox="0 0 200 200" width="160" height="160" style="flex-shrink:0;">${paths}</svg>
       <div style="min-width:140px;">${legend}</div>
     </div>
-    <div style="text-align:center; font-size:0.75rem; color:#999; margin-top:8px;">الإجمالي: ${total}</div>
   `;
 }
 
